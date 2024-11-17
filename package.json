@@ -1,0 +1,47 @@
+{
+	"name": "frieren",
+	"version": "1.0.0",
+	"scripts": {
+		"build": "./scripts/build",
+		"test": "./scripts/test",
+		"lint": "./scripts/lint"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/frierendv/frieren.git"
+	},
+	"author": "FrierenDv",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/frierendv/frieren/issues"
+	},
+	"homepage": "https://github.com/frierendv/frieren#readme",
+	"description": "",
+	"devDependencies": {
+		"@babel/preset-typescript": "^7.26.0",
+		"@eslint/js": "^9.15.0",
+		"@swc/jest": "^0.2.37",
+		"@trivago/prettier-plugin-sort-imports": "^4.3.0",
+		"@types/jest": "^29.5.14",
+		"@types/node": "^22.9.0",
+		"dotenv": "^16.4.5",
+		"eslint": "^9.15.0",
+		"eslint-config-prettier": "^9.1.0",
+		"eslint-plugin-prettier": "^5.2.1",
+		"globals": "^15.12.0",
+		"jest": "^29.7.0",
+		"openapi-typescript": "^7.4.3",
+		"prettier": "^3.3.3",
+		"ts-jest": "^29.2.5",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.6.3",
+		"typescript-eslint": "^8.14.0"
+	},
+	"dependencies": {
+		"openapi-fetch": "^0.13.0",
+		"undici": "^6.21.0"
+	},
+	"optionalDependencies": {
+		"@whiskeysockets/baileys": "^6.7.9"
+	}
+}
