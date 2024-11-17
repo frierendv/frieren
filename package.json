@@ -1,6 +1,11 @@
 {
 	"name": "frieren",
 	"version": "1.0.0",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"engines": {
+		"node": ">=18.0.0"
+	},
 	"scripts": {
 		"build": "./scripts/build",
 		"test": "./scripts/test",
@@ -17,6 +22,39 @@
 	},
 	"homepage": "https://github.com/frierendv/frieren#readme",
 	"description": "",
+	"exports": {
+		".": {
+			"require": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.mjs"
+		},
+		"./*.mjs": {
+			"types": "./dist/*.d.ts",
+			"default": "./dist/*.mjs"
+		},
+		"./*.js": {
+			"types": "./dist/*.d.ts",
+			"default": "./dist/*.js"
+		},
+		"./*": {
+			"types": "./dist/*.d.ts",
+			"require": "./dist/*.js",
+			"default": "./dist/*.mjs"
+		},
+		"./baileys": {
+			"types": "./dist/baileys/index.d.ts",
+			"require": "./dist/baileys/index.js",
+			"default": "./dist/baileys/index.mjs"
+		},
+		"./api": {
+			"types": "./dist/api/index.d.ts",
+			"require": "./dist/api/index.js",
+			"default": "./dist/api/index.mjs"
+		}
+	},
 	"devDependencies": {
 		"@babel/preset-typescript": "^7.26.0",
 		"@eslint/js": "^9.15.0",
@@ -24,6 +62,7 @@
 		"@trivago/prettier-plugin-sort-imports": "^4.3.0",
 		"@types/jest": "^29.5.14",
 		"@types/node": "^22.9.0",
+		"@types/ws": "^8.5.13",
 		"dotenv": "^16.4.5",
 		"eslint": "^9.15.0",
 		"eslint-config-prettier": "^9.1.0",
@@ -34,14 +73,14 @@
 		"prettier": "^3.3.3",
 		"ts-jest": "^29.2.5",
 		"ts-node": "^10.9.2",
+		"tsc-multi": "^1.1.0",
 		"typescript": "^5.6.3",
 		"typescript-eslint": "^8.14.0"
 	},
 	"dependencies": {
+		"baileys": "github:WhiskeySockets/Baileys",
+		"libphonenumber-js": "^1.11.14",
 		"openapi-fetch": "^0.13.0",
 		"undici": "^6.21.0"
-	},
-	"optionalDependencies": {
-		"@whiskeysockets/baileys": "^6.7.9"
 	}
 }
