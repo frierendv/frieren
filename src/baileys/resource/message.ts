@@ -1,8 +1,8 @@
-import { proto } from "@whiskeysockets/baileys";
+import { proto } from "baileys";
 
 export const IMessageArray: (keyof proto.IMessage)[] = [
 	"conversation",
-	"senderKeyDistributionMessage",
+	// "senderKeyDistributionMessage",
 	"imageMessage",
 	"contactMessage",
 	"locationMessage",

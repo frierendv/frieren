@@ -9,12 +9,18 @@ import makeWASocket, {
 	WAMessage,
 	isJidBroadcast,
 	makeCacheableSignalKeyStore,
+	makeInMemoryStore,
 	proto,
 	useMultiFileAuthState,
-} from "@whiskeysockets/baileys";
+} from "baileys";
 import EventEmitter from "events";
 import Pino from "pino";
-import { assignQuotedIfExist, downloadMedia } from "./lib/messages";
+import {
+	assignQuotedIfExist,
+	downloadMedia,
+	findMessage,
+} from "./lib/messages";
+import { parsePhoneNumber, safeFormat } from "./lib/parse";
 import { IMessageArray } from "./resource/message";
 import { IParsedMessage } from "./types";
 
@@ -32,10 +38,11 @@ const AUTH_INFO_PATH = "baileys_auth_info";
 const LOG_FILE_PATH = "./wa-logs.txt";
 const DEV_ENV = process.env.NODE_ENV === "development";
 
-class WASocket extends EventEmitter {
-	private sock: ReturnType<typeof makeWASocket> | null = null;
-	private state: AuthenticationState | null = null;
+const store = makeInMemoryStore({});
+store.readFromFile("./baileys_store.json");
 
+class WASocket extends EventEmitter {
+	private state: AuthenticationState | null = null;
 	private _options: WASocketOptions;
 
 	public on<K extends keyof BaileysEventMap>(
@@ -45,12 +52,18 @@ class WASocket extends EventEmitter {
 		return super.on(eventName, listener);
 	}
 
-	public logger = Pino(
-		{ timestamp: () => `,"time":"${new Date().toJSON()}"` },
+	public logger: Pino.Logger = Pino(
+		{
+			timestamp: () => `,"time":"${new Date().toJSON()}"`,
+			level: "silent",
+		},
 		Pino.destination(LOG_FILE_PATH)
 	);
 
 	public authPath = AUTH_INFO_PATH;
+
+	public sock: ReturnType<typeof makeWASocket> | null = null;
+	public store = store;
 
 	constructor(options: WASocketOptions = {}) {
 		super();
@@ -85,14 +98,15 @@ class WASocket extends EventEmitter {
 
 	protected shouldReconnect(update: Partial<ConnectionState>) {
 		const { connection, lastDisconnect } = update;
+		const shouldReconnect =
+			(lastDisconnect?.error as Boom)?.output?.statusCode !==
+			DisconnectReason.loggedOut;
 		if (connection === "close") {
-			if (
-				(lastDisconnect?.error as Boom)?.output?.statusCode !==
-				DisconnectReason.loggedOut
-			) {
-				this.connect();
+			if (!shouldReconnect) {
+				this.logger.error("Connection closed. You are logged out.");
+				// throw new InternalError("Connection closed. You are logged out.");
 			} else {
-				console.log("Connection closed. You are logged out.");
+				this.connect();
 			}
 		}
 	}
@@ -165,33 +179,45 @@ class WASocket extends EventEmitter {
 		message: proto.IMessage,
 		messageInfo: proto.IWebMessageInfo
 	): IParsedMessage {
+		console.log({ message, messageInfo });
+		const msg = findMessage(message);
 		const parsedMessage: Partial<IParsedMessage> = {
-			text: undefined,
+			type,
+			text: msg?.caption || msg?.text || "",
 			media: null,
 			isGroup: false,
 		};
 
 		const { key, pushName } = messageInfo;
-		parsedMessage.name = pushName ?? "";
+		parsedMessage.name = safeFormat(pushName);
 		if (key.remoteJid) {
-			parsedMessage.sender = key.remoteJid;
+			parsedMessage.sender = parsedMessage.from =
+				// (key.fromMe &&
+				// Again, socket is not null, because we call this method
+				// after the socket is assigned
+				// (this.sock!.user?.id as string)) ||
+				// To avoid undefined error
+				key.remoteJid;
 			parsedMessage.isGroup = key.remoteJid.includes("@g.us");
-			if (parsedMessage.isGroup) {
-				parsedMessage.sender = key.participant ?? key.remoteJid;
+			// If key.participant exists, it means the message is from a group
+			if (parsedMessage.isGroup && key.participant) {
+				parsedMessage.sender = key.participant;
+				parsedMessage.from = key.remoteJid;
 			}
+			parsedMessage.phone = parsePhoneNumber(parsedMessage.sender);
 		}
 
-		if (
-			type === "extendedTextMessage" ||
-			type === "ephemeralMessage" ||
-			type === "conversation"
-		) {
-			const m = message[type] as proto.Message.ExtendedTextMessage;
-			const { contextInfo } = m;
-			parsedMessage.quoted =
-				assignQuotedIfExist<IParsedMessage["quoted"]>(contextInfo);
-			parsedMessage.text = m.text || undefined;
-		}
+		// We extract the text from the message
+		// in this case, we are checking if the message is a text message
+		const contextInfo = (
+			message[type] as proto.IMessage & {
+				contextInfo?: proto.IContextInfo;
+			}
+		)?.contextInfo;
+		parsedMessage.quoted = assignQuotedIfExist<IParsedMessage["quoted"]>(
+			{ messageInfo, contextInfo },
+			this.sock!
+		);
 
 		parsedMessage.reply = async (text: string) => {
 			if (this.sock && parsedMessage.sender) {
@@ -220,38 +246,13 @@ class WASocket extends EventEmitter {
 			}
 		};
 
-		if (this.isMediaType(type)) {
-			parsedMessage.media = this.parseMedia(message, type, messageInfo);
+		if (msg?.mimetype) {
+			parsedMessage.media = {
+				mimetype: msg.mimetype,
+				download: async () => downloadMedia(messageInfo),
+			};
 		}
-
 		return parsedMessage as IParsedMessage;
-	}
-
-	private isMediaType(type: keyof proto.IMessage): boolean {
-		const mediaTypes: (keyof proto.IMessage)[] = [
-			"imageMessage",
-			"audioMessage",
-			"videoMessage",
-			"stickerMessage",
-			"ptvMessage",
-		];
-		return mediaTypes.includes(type);
-	}
-
-	private parseMedia(
-		message: proto.IMessage,
-		type: keyof proto.IMessage,
-		messageInfo: proto.IWebMessageInfo
-	) {
-		const m = message[type] as
-			| proto.Message.ImageMessage
-			| proto.Message.VideoMessage
-			| proto.Message.AudioMessage
-			| proto.Message.StickerMessage;
-		return {
-			mimetype: m.mimetype,
-			download: async () => downloadMedia(messageInfo),
-		};
 	}
 }
 

@@ -1,4 +1,4 @@
-import { proto } from "@whiskeysockets/baileys";
+import { proto } from "baileys";
 
 export interface IParsedMedia {
 	/**
@@ -11,13 +11,25 @@ export interface IParsedMedia {
 	 */
 	download: () => Promise<Buffer>;
 }
-export interface IParsedMessage {
+
+export interface IParsedMessageBase {
 	/**
 	 * Representing who sending this message.
 	 *
 	 * example: `1234567890@s.whatsapp.net`
 	 */
 	sender: string;
+	/**
+	 * Representing where the message is from.
+	 * If the message is from a group, it will be the group id. Else, it will be the sender id.
+	 */
+	from: string;
+	/**
+	 * Representing the sender phone number.
+	 *
+	 * In format: `+1234567890`
+	 */
+	phone: string;
 	/**
 	 * Representing the sender name.
 	 */
@@ -56,31 +68,24 @@ export interface IParsedMessage {
 	 * **Note:** Some permissions are required to delete the message.
 	 */
 	delete: () => Promise<void>;
+}
+
+export interface IParsedMessage extends IParsedMessageBase {
 	/**
 	 * If the message is from a group.
 	 */
 	isGroup: boolean;
 	/**
-	 * If the message is quoting another message.
+	 * Exists if the message is quoting another message.
 	 * If not, it will be `null`.
 	 */
-	quoted: {
-		/**
-		 * The quoted message text/caption. If exists.
-		 */
-		text: string | undefined;
-		/**
-		 * The quoted message media. If exists.
-		 */
-		media: IParsedMedia | null;
-		/**
-		 * The sender of the quoted message.
-		 */
-		participant: string;
-		/**
-		 * Ids of users mentioned in the quoted message.
-		 * If no one is mentioned, it will be an empty array.
-		 */
-		mentionedJid: string[] | never[];
-	} | null;
+	quoted:
+		| (Omit<IParsedMessageBase, "name"> & {
+				/**
+				 * Ids of users mentioned in the quoted message.
+				 * If no one is mentioned, it will be an empty array.
+				 */
+				mentionedJid: string[] | never[];
+		  })
+		| null;
 }

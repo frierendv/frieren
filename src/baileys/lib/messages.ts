@@ -1,64 +1,118 @@
-import { downloadMediaMessage, proto } from "@whiskeysockets/baileys";
+import makeWASocket, {
+	MiscMessageGenerationOptions,
+	downloadMediaMessage,
+	proto,
+} from "baileys";
+import { IMessageArray } from "../resource/message";
 import { IParsedMessage } from "../types";
+import { parsePhoneNumber } from "./parse";
 
 export const downloadMedia = async (
 	message: proto.IWebMessageInfo
-): Promise<Buffer> => downloadMediaMessage(message, "buffer", {});
-
-const getText = (quoted: proto.IContextInfo): string => {
-	const textSources = [
-		quoted.quotedMessage?.imageMessage?.caption,
-		quoted.quotedMessage?.videoMessage?.caption,
-		quoted.quotedMessage?.viewOnceMessage?.message?.conversation,
-		quoted.quotedMessage?.viewOnceMessage?.message?.imageMessage?.caption,
-		quoted.quotedMessage?.viewOnceMessage?.message?.videoMessage?.caption,
-		quoted.quotedMessage?.viewOnceMessageV2?.message?.conversation,
-		quoted.quotedMessage?.viewOnceMessageV2?.message?.imageMessage?.caption,
-		quoted.quotedMessage?.viewOnceMessageV2?.message?.videoMessage?.caption,
-		quoted.quotedMessage?.conversation,
-	];
-	return textSources.find((text) => text) ?? "";
+): Promise<Buffer> => {
+	return downloadMediaMessage(message, "buffer", {});
 };
 
-const getMedia = (quoted: proto.IContextInfo) => {
-	const mediaSources = [
-		quoted.quotedMessage?.imageMessage,
-		quoted.quotedMessage?.stickerMessage,
-		quoted.quotedMessage?.videoMessage,
-		quoted.quotedMessage?.viewOnceMessage?.message?.imageMessage,
-		quoted.quotedMessage?.viewOnceMessage?.message?.videoMessage,
-		quoted.quotedMessage?.viewOnceMessageV2?.message?.imageMessage,
-		quoted.quotedMessage?.viewOnceMessageV2?.message?.videoMessage,
-	];
-	return mediaSources.find((media) => media) ?? null;
+export const findMessage = (
+	message: Record<string, any>,
+	parentKey?: string
+): any => {
+	let index = 0;
+	for (const mtype of IMessageArray) {
+		const msg = parentKey ? message[parentKey] : message;
+		if (msg && msg[mtype]) {
+			const final = msg[mtype] || msg;
+			if (final?.message) {
+				return findMessage(final?.message);
+			}
+			return final?.[mtype] || final;
+		}
+		index++;
+	}
+	return null;
 };
 
 export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
-	quoted: proto.IContextInfo | null | undefined
+	{
+		contextInfo,
+		messageInfo,
+	}: {
+		contextInfo: proto.IContextInfo | null | undefined;
+		messageInfo: proto.IWebMessageInfo;
+	},
+	sock: ReturnType<typeof makeWASocket>
 ): T | null => {
-	if (!quoted?.participant) {
+	if (!contextInfo?.participant || !contextInfo.quotedMessage) {
 		return null;
 	}
 
-	const text = getText(quoted);
-	const media = getMedia(quoted);
+	const type = Object.keys(
+		contextInfo.quotedMessage
+	)[0] as keyof proto.IMessage;
+	const msg = findMessage(contextInfo.quotedMessage);
 
 	const quotedMessage: Partial<IParsedMessage["quoted"]> = {
-		text,
-		mentionedJid: quoted.mentionedJid ?? [],
-		participant: quoted.participant,
+		type,
+		text: msg?.caption || msg?.text || "",
+		mentionedJid: contextInfo.mentionedJid ?? [],
+		sender: contextInfo.participant,
+		phone: parsePhoneNumber(contextInfo.participant),
+		from: messageInfo.key.remoteJid!,
 		media: null,
 	};
 
-	if (media) {
+	if (msg?.mimetype) {
 		quotedMessage.media = {
-			mimetype: media.mimetype as string,
+			mimetype: msg.mimetype,
 			download: async () =>
 				downloadMedia({
-					message: quoted.quotedMessage,
+					message: contextInfo.quotedMessage,
 				} as proto.IWebMessageInfo),
 		};
 	}
+
+	quotedMessage.delete = async () => {
+		if (quotedMessage.from) {
+			try {
+				await sock.sendMessage(quotedMessage.from, {
+					delete: {
+						...messageInfo.key,
+						id: contextInfo.stanzaId,
+					},
+				});
+			} catch (error) {
+				sock.logger.error("Delete failed:", error);
+			}
+		}
+	};
+
+	quotedMessage.reply = async (text: string) => {
+		if (quotedMessage.from) {
+			const options: MiscMessageGenerationOptions = {
+				quoted: {
+					...messageInfo,
+					message: contextInfo.quotedMessage,
+					key: {
+						...messageInfo.key,
+						remoteJid: quotedMessage.from,
+						participant: contextInfo.participant,
+						id: contextInfo.stanzaId,
+					},
+				},
+			};
+			console.debug(options);
+			try {
+				await sock.sendMessage(
+					quotedMessage.from,
+					{ text: text || "" },
+					options
+				);
+			} catch (error) {
+				sock.logger.error("Reply failed:", error);
+				return undefined;
+			}
+		}
+	};
 
 	return quotedMessage as T;
 };
