@@ -7,4 +7,9 @@ cd "$(dirname "$0")/.."
 rm -rf dist
 mkdir dist
 
-npm exec tsc
+npm exec tsc-multi
+
+cp dist/index.d.ts dist/index.d.mts
+
+(cd dist && node -e 'require("frieren")')
+(cd dist && node -e 'import("frieren")' --input-type=module)
