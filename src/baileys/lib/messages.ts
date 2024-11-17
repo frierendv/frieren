@@ -100,7 +100,6 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 					},
 				},
 			};
-			console.debug(options);
 			try {
 				await sock.sendMessage(
 					quotedMessage.from,

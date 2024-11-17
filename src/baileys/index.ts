@@ -179,7 +179,6 @@ class WASocket extends EventEmitter {
 		message: proto.IMessage,
 		messageInfo: proto.IWebMessageInfo
 	): IParsedMessage {
-		console.log({ message, messageInfo });
 		const msg = findMessage(message);
 		const parsedMessage: Partial<IParsedMessage> = {
 			type,
