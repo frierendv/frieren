@@ -8,6 +8,8 @@ import makeWASocket, {
 	UserFacingSocketConfig,
 	WAMessage,
 	isJidBroadcast,
+	isJidNewsletter,
+	jidNormalizedUser,
 	makeCacheableSignalKeyStore,
 	makeInMemoryStore,
 	proto,
@@ -15,17 +17,26 @@ import makeWASocket, {
 } from "baileys";
 import EventEmitter from "events";
 import Pino from "pino";
+import { Mutex } from "../shared/mutex";
 import {
 	assignQuotedIfExist,
 	downloadMedia,
 	findMessage,
 } from "./lib/messages";
-import { parsePhoneNumber, safeFormat } from "./lib/parse";
+import * as Parse from "./lib/parse";
+import * as Wrapper from "./lib/wrapper";
 import { IMessageArray } from "./resource/message";
 import { IParsedMessage } from "./types";
 
 type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
+	/**
+	 * The path to store the authentication information.
+	 */
 	authPath?: string;
+	/**
+	 * The path to store the store information.
+	 */
+	storePath?: string;
 };
 
 interface WASocket {
@@ -34,16 +45,20 @@ interface WASocket {
 		listener: (_args: IParsedMessage) => void
 	): this;
 }
-const AUTH_INFO_PATH = "baileys_auth_info";
-const LOG_FILE_PATH = "./wa-logs.txt";
-const DEV_ENV = process.env.NODE_ENV === "development";
 
-const store = makeInMemoryStore({});
-store.readFromFile("./baileys_store.json");
+// Extracted constants for default paths and log file
+const DEFAULT_AUTH_INFO_PATH = "baileys_auth_info";
+const DEFAULT_STORE_FILE_PATH = "baileys_store.json";
+const DEFAULT_LOG_FILE_PATH = "./wa-logs.txt";
 
 class WASocket extends EventEmitter {
+	private _mutex = new Mutex();
 	private state: AuthenticationState | null = null;
-	private _options: WASocketOptions;
+	private logger: Pino.Logger;
+
+	private readonly _options: WASocketOptions;
+	private readonly authPath: string;
+	private readonly storePath: string;
 
 	public on<K extends keyof BaileysEventMap>(
 		eventName: K,
@@ -52,36 +67,39 @@ class WASocket extends EventEmitter {
 		return super.on(eventName, listener);
 	}
 
-	public logger: Pino.Logger = Pino(
-		{
-			timestamp: () => `,"time":"${new Date().toJSON()}"`,
-			level: "silent",
-		},
-		Pino.destination(LOG_FILE_PATH)
-	);
-
-	public authPath = AUTH_INFO_PATH;
-
 	public sock: ReturnType<typeof makeWASocket> | null = null;
-	public store = store;
+	public store = makeInMemoryStore({});
 
 	constructor(options: WASocketOptions = {}) {
 		super();
-		this.setupLogger();
-		const { authPath, ...rest } = options;
-		this.authPath = authPath ?? AUTH_INFO_PATH;
-		this._options = {
-			...rest,
-		};
-		if (!this.sock) {
-			this.initialize();
-		}
+		const { authPath, storePath, ...rest } = options;
+		this.authPath = authPath ?? DEFAULT_AUTH_INFO_PATH;
+		this.storePath =
+			(storePath
+				? storePath.endsWith(".json")
+					? storePath
+					: `${storePath}.json`
+				: null) ?? DEFAULT_STORE_FILE_PATH;
+		this.logger = Pino(
+			{
+				timestamp: () => `,"time":"${new Date().toISOString()}"`,
+				level:
+					process.env.NODE_ENV === "development" ? "trace" : "silent",
+			},
+			Pino.destination(DEFAULT_LOG_FILE_PATH)
+		);
+		this._options = { ...rest };
+		this.setupStore();
+		this.initialize();
 	}
 
-	private setupLogger() {
-		if (DEV_ENV) {
-			this.logger.level = "trace";
-		}
+	protected setupStore() {
+		this.store.readFromFile(this.storePath);
+		this._mutex.runWithInterval(
+			() => this.store.writeToFile(this.storePath),
+			10_000
+		);
+		this.store.bind(this);
 	}
 
 	protected async initialize() {
@@ -90,31 +108,31 @@ class WASocket extends EventEmitter {
 			this.state = auth.state;
 			this.connect();
 			this.on("creds.update", auth.saveCreds);
-			this.on("connection.update", this.shouldReconnect);
+			this.on("connection.update", this.handleConnectionUpdate);
 		} catch (error) {
 			this.logger.error("Initialization failed:", error);
 		}
 	}
 
-	protected shouldReconnect(update: Partial<ConnectionState>) {
+	private handleConnectionUpdate = (update: Partial<ConnectionState>) => {
 		const { connection, lastDisconnect } = update;
-		const shouldReconnect =
-			(lastDisconnect?.error as Boom)?.output?.statusCode !==
-			DisconnectReason.loggedOut;
 		if (connection === "close") {
+			const shouldReconnect =
+				(lastDisconnect?.error as Boom)?.output?.statusCode !==
+				DisconnectReason.loggedOut;
 			if (!shouldReconnect) {
 				this.logger.error("Connection closed. You are logged out.");
-				// throw new InternalError("Connection closed. You are logged out.");
 			} else {
 				this.connect();
 			}
 		}
-	}
+	};
 
 	protected connect() {
 		this.sock = makeWASocket({
 			printQRInTerminal: true,
-			shouldIgnoreJid: (jid) => isJidBroadcast(jid),
+			shouldIgnoreJid: (jid) =>
+				isJidBroadcast(jid) || isJidNewsletter(jid),
 			...this._options,
 			auth: {
 				/**
@@ -132,7 +150,7 @@ class WASocket extends EventEmitter {
 
 		this.sock.ev.emit = this.emit.bind(this);
 
-		this.on("messages.upsert", this.handleMessagesUpsert);
+		this.sock.ev.on("messages.upsert", this.handleMessagesUpsert);
 	}
 
 	private handleMessagesUpsert = (messages: {
@@ -150,7 +168,7 @@ class WASocket extends EventEmitter {
 		);
 	};
 
-	prepareMessage(update: {
+	private prepareMessage(update: {
 		messages: WAMessage[];
 		type: MessageUpsertType;
 		requestId?: string;
@@ -174,36 +192,45 @@ class WASocket extends EventEmitter {
 		return null;
 	}
 
-	parseMessage<MType extends keyof proto.IMessage>(
+	private parseMessage<MType extends keyof proto.IMessage>(
 		type: MType,
 		message: proto.IMessage,
 		messageInfo: proto.IWebMessageInfo
 	): IParsedMessage {
+		// Find the message from the message object
 		const msg = findMessage(message);
+
+		const text = msg?.conversation ?? msg?.caption ?? msg?.text ?? "";
 		const parsedMessage: Partial<IParsedMessage> = {
 			type,
-			text: msg?.caption || msg?.text || "",
+			text,
+			args: text.split(" "),
 			media: null,
 			isGroup: false,
 		};
 
+		// if the message is a media message
+		if (msg?.mimetype) {
+			parsedMessage.media = {
+				mimetype: msg.mimetype,
+				download: async () => downloadMedia(messageInfo),
+			};
+		}
+
 		const { key, pushName } = messageInfo;
-		parsedMessage.name = safeFormat(pushName);
+		parsedMessage.name = Parse.safeString(pushName);
 		if (key.remoteJid) {
-			parsedMessage.sender = parsedMessage.from =
-				// (key.fromMe &&
-				// Again, socket is not null, because we call this method
-				// after the socket is assigned
-				// (this.sock!.user?.id as string)) ||
-				// To avoid undefined error
-				key.remoteJid;
+			parsedMessage.sender = parsedMessage.from = key.fromMe
+				? jidNormalizedUser(this.sock!.user?.id!)
+				: key.remoteJid;
 			parsedMessage.isGroup = key.remoteJid.includes("@g.us");
+
 			// If key.participant exists, it means the message is from a group
-			if (parsedMessage.isGroup && key.participant) {
+			if (key.participant) {
 				parsedMessage.sender = key.participant;
 				parsedMessage.from = key.remoteJid;
 			}
-			parsedMessage.phone = parsePhoneNumber(parsedMessage.sender);
+			parsedMessage.phone = Parse.phoneNumber(parsedMessage.sender);
 		}
 
 		// We extract the text from the message
@@ -218,40 +245,34 @@ class WASocket extends EventEmitter {
 			this.sock!
 		);
 
-		parsedMessage.reply = async (text: string) => {
-			if (this.sock && parsedMessage.sender) {
-				try {
-					await this.sock.sendMessage(
-						parsedMessage.sender,
-						{ text: text || "" },
-						{ quoted: messageInfo }
-					);
-				} catch (error) {
+		parsedMessage.reply = async (text: string) =>
+			Wrapper.wrap(
+				() =>
+					this.sock!.sendMessage(
+						parsedMessage.sender!,
+						{
+							text,
+						},
+						{
+							quoted: messageInfo,
+						}
+					),
+				(error) => {
 					this.logger.error("Reply failed:", error);
-					return undefined;
 				}
-			}
-		};
+			);
 
-		parsedMessage.delete = async () => {
-			if (this.sock && parsedMessage.sender) {
-				try {
-					await this.sock.sendMessage(parsedMessage.sender, {
+		parsedMessage.delete = async () =>
+			Wrapper.wrap(
+				() =>
+					this.sock!.sendMessage(parsedMessage.sender!, {
 						delete: key,
-					});
-				} catch (error) {
+					}),
+				(error) => {
 					this.logger.error("Delete failed:", error);
 				}
-			}
-		};
-
-		if (msg?.mimetype) {
-			parsedMessage.media = {
-				mimetype: msg.mimetype,
-				download: async () => downloadMedia(messageInfo),
-			};
-		}
-		return parsedMessage as IParsedMessage;
+			);
+		return { ...parsedMessage, message: messageInfo } as IParsedMessage;
 	}
 }
 
