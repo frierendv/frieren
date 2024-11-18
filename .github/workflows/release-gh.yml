@@ -31,6 +31,11 @@ jobs:
                   SCHEMAS_URL: ${{ secrets.SCHEMAS_URL }}
               run: npm run build
 
+            - name: Publish
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm publish
+
             - name: Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
