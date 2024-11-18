@@ -27,6 +27,8 @@ jobs:
               run: npm run test
 
             - name: Build
+              env:
+                  SCHEMAS_URL: ${{ secrets.SCHEMAS_URL }}
               run: npm run build
 
             - name: Release
