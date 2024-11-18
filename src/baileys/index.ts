@@ -103,6 +103,7 @@ class WASocket extends EventEmitter {
 		try {
 			const auth = await useMultiFileAuthState(this.authPath);
 			this.state = auth.state;
+
 			this.connect();
 			this.on("creds.update", auth.saveCreds);
 			this.on("connection.update", this.handleConnectionUpdate);
@@ -145,7 +146,7 @@ class WASocket extends EventEmitter {
 			},
 		});
 
-		this.sock.ev.emit = this.emit.bind(this);
+		this.sock.ev.emit.bind(this);
 
 		this.sock.ev.on("messages.upsert", this.handleMessagesUpsert);
 	}
