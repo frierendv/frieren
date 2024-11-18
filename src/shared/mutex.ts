@@ -3,7 +3,7 @@ import { Mutex as AsyncMutex } from "async-mutex";
 type Task<T> = () => T | Promise<T>;
 
 export class Mutex extends AsyncMutex {
-	private queue: Task<any>[] = [];
+	private queue: Task<unknown>[] = [];
 
 	private async runNext() {
 		if (this.queue.length === 0) {
