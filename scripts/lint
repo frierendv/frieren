@@ -4,4 +4,4 @@ set -e -o pipefail
 
 cd "$(dirname "$0")/.." || exit
 
-./node_modules/.bin/eslint .
+./node_modules/.bin/eslint . --format=pretty --stats
