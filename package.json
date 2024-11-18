@@ -33,19 +33,6 @@
 			},
 			"types": "./dist/index.d.ts",
 			"default": "./dist/index.mjs"
-		},
-		"./*.mjs": {
-			"types": "./dist/*.d.ts",
-			"default": "./dist/*.mjs"
-		},
-		"./*.js": {
-			"types": "./dist/*.d.ts",
-			"default": "./dist/*.js"
-		},
-		"./*": {
-			"types": "./dist/*.d.ts",
-			"require": "./dist/*.js",
-			"default": "./dist/*.mjs"
 		}
 	},
 	"files": [
