@@ -16,7 +16,12 @@ jobs:
             - uses: actions/setup-node@v4
               with:
                   node-version: 20
-            - run: npm ci
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Setup scripts permissions
+              run: chmod +x ./scripts/*
+
             - name: Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
