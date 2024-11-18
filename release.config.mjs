@@ -19,7 +19,7 @@ export default {
 		[
 			"@semantic-release/github",
 			{
-				assets: ["dist/**"],
+				assets: ["frieren-*.tgz"],
 			},
 		],
 		"@semantic-release/git",
