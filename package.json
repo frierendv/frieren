@@ -24,19 +24,6 @@
 	"publishConfig": {
 		"registry": "https://npm.pkg.github.com/"
 	},
-	"release": {
-		"branches": [
-			{
-				"name": "main",
-				"channel": "latest"
-			},
-			{
-				"name": "beta",
-				"channel": "beta",
-				"prerelease": "beta"
-			}
-		]
-	},
 	"description": "",
 	"exports": {
 		".": {
@@ -108,10 +95,5 @@
 				"lru-cache": "^11.0.2"
 			}
 		}
-	},
-	"plugins": [
-		"@semantic-release/commit-analyzer",
-		"@semantic-release/release-notes-generator",
-		"@semantic-release/git"
-	]
+	}
 }
