@@ -1,11 +1,8 @@
-import makeWASocket, {
-	MiscMessageGenerationOptions,
-	downloadMediaMessage,
-	proto,
-} from "baileys";
+import makeWASocket, { downloadMediaMessage, proto } from "baileys";
 import { IMessageArray } from "../resource/message";
 import { IParsedMessage } from "../types";
-import { parsePhoneNumber } from "./parse";
+import * as Parse from "./parse";
+import * as Wrapper from "./wrapper";
 
 export const downloadMedia = async (
 	message: proto.IWebMessageInfo
@@ -56,7 +53,7 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 		text: msg?.caption || msg?.text || "",
 		mentionedJid: contextInfo.mentionedJid ?? [],
 		sender: contextInfo.participant,
-		phone: parsePhoneNumber(contextInfo.participant),
+		phone: Parse.phoneNumber(contextInfo.participant),
 		from: messageInfo.key.remoteJid!,
 		media: null,
 	};
@@ -71,47 +68,30 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 		};
 	}
 
-	quotedMessage.delete = async () => {
-		if (quotedMessage.from) {
-			try {
-				await sock.sendMessage(quotedMessage.from, {
+	quotedMessage.delete = async () =>
+		Wrapper.wrap(
+			() =>
+				sock.sendMessage(quotedMessage.from!, {
 					delete: {
 						...messageInfo.key,
 						id: contextInfo.stanzaId,
 					},
-				});
-			} catch (error) {
-				sock.logger.error("Delete failed:", error);
-			}
-		}
-	};
+				}),
+			(error) => sock.logger.error("Delete failed:", error)
+		);
 
-	quotedMessage.reply = async (text: string) => {
-		if (quotedMessage.from) {
-			const options: MiscMessageGenerationOptions = {
-				quoted: {
-					...messageInfo,
-					message: contextInfo.quotedMessage,
-					key: {
-						...messageInfo.key,
-						remoteJid: quotedMessage.from,
-						participant: contextInfo.participant,
-						id: contextInfo.stanzaId,
-					},
-				},
-			};
-			try {
-				await sock.sendMessage(
-					quotedMessage.from,
+	quotedMessage.reply = async (text: string) =>
+		Wrapper.wrap(
+			() =>
+				sock.sendMessage(
+					quotedMessage.from!,
 					{ text: text || "" },
-					options
-				);
-			} catch (error) {
-				sock.logger.error("Reply failed:", error);
-				return undefined;
-			}
-		}
-	};
+					{
+						quoted: quotedMessage.message,
+					}
+				),
+			(error) => sock.logger.error("Delete failed:", error)
+		);
 
-	return quotedMessage as T;
+	return { ...quotedMessage, message: messageInfo } as T;
 };
