@@ -38,6 +38,22 @@
 		"url": "https://github.com/frierendv/frieren/issues"
 	},
 	"homepage": "https://github.com/frierendv/frieren#readme",
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com/"
+	},
+	"release": {
+		"branches": [
+			{
+				"name": "main",
+				"channel": "latest"
+			},
+			{
+				"name": "beta",
+				"channel": "beta",
+				"prerelease": "beta"
+			}
+		]
+	},
 	"description": "",
 	"exports": {
 		".": {
