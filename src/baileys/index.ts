@@ -1,6 +1,7 @@
 import { Boom } from "@hapi/boom";
 import makeWASocket, {
 	AuthenticationState,
+	BaileysEventEmitter,
 	BaileysEventMap,
 	ConnectionState,
 	DisconnectReason,
@@ -39,19 +40,11 @@ type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 	storePath?: string;
 };
 
-interface IWASocket {
-	on<K extends "message.upsert-parsed" & keyof BaileysEventMap>(
-		_eventName: K,
-		_listener: (_args: IParsedMessage) => void
-	): this;
-}
-
-// Extracted constants for default paths and log file
 const DEFAULT_AUTH_INFO_PATH = "baileys_auth_info";
 const DEFAULT_STORE_FILE_PATH = "baileys_store.json";
 const DEFAULT_LOG_FILE_PATH = "./wa-logs.txt";
 
-class WASocket extends EventEmitter implements IWASocket {
+class WASocket extends EventEmitter {
 	private _mutex = new Mutex();
 	private state: AuthenticationState | null = null;
 	private logger: Pino.Logger;
@@ -60,9 +53,13 @@ class WASocket extends EventEmitter implements IWASocket {
 	private readonly authPath: string;
 	private readonly storePath: string;
 
-	public on<K extends keyof BaileysEventMap>(
-		eventName: K,
-		listener: (_args: BaileysEventMap[K]) => void
+	public on<T extends keyof BaileysEventMap | "message.upsert-parsed">(
+		eventName: T,
+		listener: (
+			_args: T extends "message.upsert-parsed"
+				? IParsedMessage
+				: BaileysEventMap[Exclude<T, "message.upsert-parsed">]
+		) => void
 	): this {
 		return super.on(eventName, listener);
 	}
@@ -99,7 +96,7 @@ class WASocket extends EventEmitter implements IWASocket {
 			() => this.store.writeToFile(this.storePath),
 			10_000
 		);
-		this.store.bind(this);
+		this.store.bind(this as unknown as BaileysEventEmitter);
 	}
 
 	protected async initialize() {
