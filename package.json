@@ -6,6 +6,16 @@
 	"engines": {
 		"node": ">=18.0.0"
 	},
+	"devEngines": {
+		"runtime": {
+			"name": "node",
+			"onFail": "error"
+		},
+		"packageManager": {
+			"name": "npm",
+			"onFail": "error"
+		}
+	},
 	"scripts": {
 		"build": "./scripts/build",
 		"test": "./scripts/test",
@@ -43,16 +53,6 @@
 			"types": "./dist/*.d.ts",
 			"require": "./dist/*.js",
 			"default": "./dist/*.mjs"
-		},
-		"./baileys": {
-			"types": "./dist/baileys/index.d.ts",
-			"require": "./dist/baileys/index.js",
-			"default": "./dist/baileys/index.mjs"
-		},
-		"./api": {
-			"types": "./dist/api/index.d.ts",
-			"require": "./dist/api/index.js",
-			"default": "./dist/api/index.mjs"
 		}
 	},
 	"devDependencies": {
@@ -66,6 +66,7 @@
 		"dotenv": "^16.4.5",
 		"eslint": "^9.15.0",
 		"eslint-config-prettier": "^9.1.0",
+		"eslint-formatter-pretty": "^6.0.1",
 		"eslint-plugin-prettier": "^5.2.1",
 		"globals": "^15.12.0",
 		"jest": "^29.7.0",
@@ -75,13 +76,25 @@
 		"ts-node": "^10.9.2",
 		"tsc-multi": "^1.1.0",
 		"typescript": "^5.6.3",
-		"typescript-eslint": "^8.14.0"
+		"typescript-eslint": "^8.15.0"
 	},
 	"dependencies": {
 		"async-mutex": "^0.5.0",
-		"baileys": "github:WhiskeySockets/Baileys",
 		"libphonenumber-js": "^1.11.14",
 		"openapi-fetch": "^0.13.0",
 		"undici": "^6.21.0"
+	},
+	"optionalDependencies": {
+		"baileys": "^6.7.9"
+	},
+	"overrides": {
+		"@whiskeysockets/eslint-config": {
+			"eslint": "^9.15.0"
+		},
+		"baileys": {
+			"cache-manager": {
+				"lru-cache": "^11.0.2"
+			}
+		}
 	}
 }
