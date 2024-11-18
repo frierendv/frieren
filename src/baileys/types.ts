@@ -58,7 +58,9 @@ export interface IParsedMessageBase {
 	 *
 	 * @param {String} text the message to reply to.
 	 */
-	reply: (text: string | "") => Promise<proto.WebMessageInfo | undefined>;
+	reply: (
+		_text: string | ""
+	) => Promise<proto.WebMessageInfo | undefined | void>;
 	/**
 	 * Force delete the message.
 	 *
