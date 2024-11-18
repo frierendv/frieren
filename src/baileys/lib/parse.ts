@@ -2,7 +2,7 @@ import { AsYouType } from "libphonenumber-js";
 
 const asYouType = new AsYouType();
 
-export const parsePhoneNumber = (phone: string) => {
+export const phoneNumber = (phone: string) => {
 	asYouType.reset();
 	const phoneNumber = asYouType.input(
 		phone.startsWith("+") ? phone : `+${phone}`
@@ -12,7 +12,7 @@ export const parsePhoneNumber = (phone: string) => {
 
 // safe format the string, remove all unnecessary characters
 // like: `\n`, `\t`, `\r`, etc.
-export const safeFormat = (text: string | null | undefined) => {
+export const safeString = (text: string | null | undefined) => {
 	if (!text) {
 		return undefined;
 	}
