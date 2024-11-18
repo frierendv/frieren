@@ -68,6 +68,10 @@ export interface IParsedMessageBase {
 	 * **Note:** Some permissions are required to delete the message.
 	 */
 	delete: () => Promise<void>;
+	/**
+	 * Represents the original message.
+	 */
+	message: proto.IWebMessageInfo;
 }
 
 export interface IParsedMessage extends IParsedMessageBase {
