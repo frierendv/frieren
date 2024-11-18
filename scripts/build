@@ -15,7 +15,6 @@ sed -i 's/import("long").Long/import("long")/g' node_modules/baileys/lib/Socket/
 
 # Generate the types from the OpenAPI schema
 rm -rf src/api/spec.d.ts
-npx openapi-typescript "$SCHEMAS_URL" --output src/api/spec.d.ts &>/dev/null
 
 # compile.
 npm exec tsc-multi

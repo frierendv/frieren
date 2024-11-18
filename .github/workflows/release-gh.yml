@@ -27,12 +27,13 @@ jobs:
             - name: Setup scripts permissions
               run: chmod +x ./scripts/*
 
+            - name: Generate schemas
+              run: npx openapi-typescript "$SCHEMAS_URL" --output src/api/spec.d.ts &>/dev/null
+
             - name: Run tests
               run: npm run test
 
             - name: Build
-              env:
-                  SCHEMAS_URL: ${{ secrets.SCHEMAS_URL }}
               run: npm run build
 
             - name: Publish package
