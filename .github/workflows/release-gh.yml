@@ -12,11 +12,15 @@ jobs:
             contents: write
             packages: write
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
               with:
                   node-version: 20
-                  registry-url: https://npm.pkg.github.com
+                  registry-url: https://npm.pkg.github.com/
+
             - name: Install dependencies
               run: npm ci
 
@@ -31,12 +35,12 @@ jobs:
                   SCHEMAS_URL: ${{ secrets.SCHEMAS_URL }}
               run: npm run build
 
-            - name: Publish
-              run: npm publish
+            - name: Publish package
+              run: npm publish --access public
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Release
+            - name: Create release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: npx semantic-release
