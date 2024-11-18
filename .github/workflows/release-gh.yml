@@ -28,7 +28,7 @@ jobs:
               run: chmod +x ./scripts/*
 
             - name: Generate schemas
-              run: npx openapi-typescript "$SCHEMAS_URL" --output src/api/spec.d.ts &>/dev/null
+              run: npx openapi-typescript "$SCHEMAS_URL" --output ./src/api/spec.d.ts &> /dev/null
               env:
                   SCHEMAS_URL: ${{ secrets.SCHEMAS_URL }}
 
