@@ -1,4 +1,4 @@
-import { Client } from "../src/client";
+import { Client } from "../src/api";
 
 describe("OpenAPI Client", () => {
 	const mockEnv = (
