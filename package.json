@@ -6,28 +6,11 @@
 	"engines": {
 		"node": ">=18.0.0"
 	},
-	"devEngines": {
-		"os": [
-			"linux"
-		],
-		"runtime": {
-			"name": "node",
-			"onFail": "error"
-		},
-		"packageManager": {
-			"name": "npm",
-			"onFail": "error"
-		}
-	},
 	"scripts": {
 		"build": "./scripts/build",
 		"test": "./scripts/test",
 		"lint": "./scripts/lint"
 	},
-	"os": [
-		"linux",
-		"darwin"
-	],
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/frierendv/frieren.git"
@@ -125,5 +108,10 @@
 				"lru-cache": "^11.0.2"
 			}
 		}
-	}
+	},
+	"plugins": [
+		"@semantic-release/commit-analyzer",
+		"@semantic-release/release-notes-generator",
+		"@semantic-release/git"
+	]
 }
