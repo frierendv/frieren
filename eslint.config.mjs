@@ -1,16 +1,24 @@
 import pluginJs from "@eslint/js";
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended";
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 /**
  * @type {import("eslint").Linter.Config}
  */
 export default [
 	{
-		ignores: ["dist/**/*", "__tests__/**/*"],
+		ignores: [
+			"dist/**/*",
+			"__tests__/**/*",
+			"node_modules/**/*",
+			"coverage/**/*",
+			"src/api/spec.d.ts",
+		],
 	},
 	{ languageOptions: { globals: { ...globals.node } } },
 	pluginJs.configs.recommended,
+	...tseslint.configs.recommended,
 	{
 		rules: {
 			curly: ["error"],
