@@ -10,11 +10,9 @@ export const phoneNumber = (phone: string) => {
 	return phoneNumber;
 };
 
-// safe format the string, remove all unnecessary characters
-// like: `\n`, `\t`, `\r`, etc.
 export const safeString = (text: string | null | undefined) => {
 	if (!text) {
-		return undefined;
+		return "";
 	}
 	return text.replace(/[\n\t\r]/g, "");
 };
