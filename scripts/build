@@ -2,21 +2,27 @@
 
 set -e -o pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 rm -rf dist
 mkdir dist
 
+### SETUP ###
 # make copy of the original file
-cp node_modules/baileys/lib/Socket/index.d.ts dist/baileys.d.ts
+cp node_modules/baileys/lib/Socket/index.d.ts dist/lib.Socket.baileys.d.ts
 # replace the import
 sed -i 's/import("long").Long/import("long")/g' node_modules/baileys/lib/Socket/index.d.ts
+
+# Generate the types from the OpenAPI schema
+rm -rf src/api/spec.d.ts
+npx openapi-typescript "$SCHEMAS_URL" --output src/api/spec.d.ts >/dev/null
 
 # compile.
 npm exec tsc-multi
 
+### POST-COMPILE ###
 # restore the original file
-mv dist/baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
+mv dist/lib.Socket.baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
 
 cp dist/index.d.ts dist/index.d.mts
 
