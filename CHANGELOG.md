@@ -1,4 +1,6 @@
-## Unreleased (2024-11-19)
+## Released (2024-11-19)
+
+## v1.0.0 (2024-11-19)
 
 ### New feature
 
