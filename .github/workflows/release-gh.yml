@@ -23,6 +23,12 @@ jobs:
             - name: Setup scripts permissions
               run: chmod +x ./scripts/*
 
+            - name: Run tests
+              run: npm run test
+
+            - name: Build
+              run: npm run build
+
             - name: Release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
