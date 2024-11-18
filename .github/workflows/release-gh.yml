@@ -38,6 +38,9 @@ jobs:
             - name: Build
               run: npm run build
 
+            - name: Copy schemas -if needed-
+              run: cp ./src/api/spec.d.ts ./dist/api/spec.d.ts
+
             - name: Publish package
               run: npm publish --access public
               env:
