@@ -39,10 +39,10 @@ type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 	storePath?: string;
 };
 
-interface WASocket {
-	on<K extends "message.upsert-parsed">(
-		eventName: K,
-		listener: (_args: IParsedMessage) => void
+interface IWASocket {
+	on<K extends "message.upsert-parsed" & keyof BaileysEventMap>(
+		_eventName: K,
+		_listener: (_args: IParsedMessage) => void
 	): this;
 }
 
@@ -51,7 +51,7 @@ const DEFAULT_AUTH_INFO_PATH = "baileys_auth_info";
 const DEFAULT_STORE_FILE_PATH = "baileys_store.json";
 const DEFAULT_LOG_FILE_PATH = "./wa-logs.txt";
 
-class WASocket extends EventEmitter {
+class WASocket extends EventEmitter implements IWASocket {
 	private _mutex = new Mutex();
 	private state: AuthenticationState | null = null;
 	private logger: Pino.Logger;
@@ -140,9 +140,9 @@ class WASocket extends EventEmitter {
 				 * we call connect after assigned
 				 * the state
 				 */
-				creds: this.state?.creds!,
+				creds: this.state!.creds,
 				keys: makeCacheableSignalKeyStore(
-					this.state?.keys!,
+					this.state!.keys,
 					this.logger
 				),
 			},
@@ -221,7 +221,7 @@ class WASocket extends EventEmitter {
 		parsedMessage.name = Parse.safeString(pushName);
 		if (key.remoteJid) {
 			parsedMessage.sender = parsedMessage.from = key.fromMe
-				? jidNormalizedUser(this.sock!.user?.id!)
+				? jidNormalizedUser(this.sock!.user?.id)
 				: key.remoteJid;
 			parsedMessage.isGroup = key.remoteJid.includes("@g.us");
 

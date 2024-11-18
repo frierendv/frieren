@@ -9,24 +9,30 @@ export const downloadMedia = async (
 ): Promise<Buffer> => {
 	return downloadMediaMessage(message, "buffer", {});
 };
-
+type IFindMessage = proto.Message.ExtendedTextMessage &
+	proto.Message.FutureProofMessage &
+	proto.Message.AudioMessage &
+	proto.Message.ImageMessage &
+	proto.Message.VideoMessage &
+	proto.Message.StickerMessage &
+	proto.Message.DocumentMessage &
+	proto.IMessage;
 export const findMessage = (
-	message: Record<string, any>,
-	parentKey?: string
-): any => {
-	let index = 0;
+	message: proto.IMessage,
+	parentKey?: keyof proto.IMessage
+): IFindMessage => {
 	for (const mtype of IMessageArray) {
 		const msg = parentKey ? message[parentKey] : message;
-		if (msg && msg[mtype]) {
-			const final = msg[mtype] || msg;
-			if (final?.message) {
-				return findMessage(final?.message);
+		if (msg && (msg as proto.IMessage)[mtype]) {
+			const final = msg as proto.IWebMessageInfo;
+			if ((final as proto.IWebMessageInfo)?.message) {
+				return findMessage(final.message as proto.IMessage);
 			}
-			return final?.[mtype] || final;
+			return (((final as proto.IMessage)[mtype] as proto.IMessage) ||
+				(final as proto.IMessage)) as IFindMessage;
 		}
-		index++;
 	}
-	return null;
+	return message as IFindMessage;
 };
 
 export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
@@ -47,6 +53,9 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 		contextInfo.quotedMessage
 	)[0] as keyof proto.IMessage;
 	const msg = findMessage(contextInfo.quotedMessage);
+	if (!msg) {
+		return null;
+	}
 
 	const quotedMessage: Partial<IParsedMessage["quoted"]> = {
 		type,
