@@ -29,6 +29,8 @@ jobs:
 
             - name: Generate schemas
               run: npx openapi-typescript "$SCHEMAS_URL" --output src/api/spec.d.ts &>/dev/null
+              env:
+                  SCHEMAS_URL: ${{ secrets.SCHEMAS_URL }}
 
             - name: Run tests
               run: npm run test
