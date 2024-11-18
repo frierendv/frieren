@@ -7,6 +7,9 @@
 		"node": ">=18.0.0"
 	},
 	"devEngines": {
+		"os": [
+			"linux"
+		],
 		"runtime": {
 			"name": "node",
 			"onFail": "error"
@@ -21,6 +24,10 @@
 		"test": "./scripts/test",
 		"lint": "./scripts/lint"
 	},
+	"os": [
+		"linux",
+		"darwin"
+	],
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/frierendv/frieren.git"
@@ -55,6 +62,9 @@
 			"default": "./dist/*.mjs"
 		}
 	},
+	"files": [
+		"dist"
+	],
 	"devDependencies": {
 		"@babel/preset-typescript": "^7.26.0",
 		"@eslint/js": "^9.15.0",
@@ -72,6 +82,7 @@
 		"jest": "^29.7.0",
 		"openapi-typescript": "^7.4.3",
 		"prettier": "^3.3.3",
+		"semantic-release": "^24.2.0",
 		"ts-jest": "^29.2.5",
 		"ts-node": "^10.9.2",
 		"tsc-multi": "^1.1.0",
