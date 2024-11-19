@@ -6,6 +6,10 @@ export interface IParsedMedia {
 	 */
 	mimetype: string;
 	/**
+	 * Size of the media.
+	 */
+	size: number | Long;
+	/**
 	 * Download the media.
 	 * @returns {Promise<Buffer>} the media buffer.
 	 */
