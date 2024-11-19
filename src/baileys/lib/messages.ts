@@ -1,32 +1,33 @@
-import makeWASocket, { downloadMediaMessage, proto } from "baileys";
-import { IMessageArray } from "../resource/message";
+import { proto } from "baileys/WAProto";
+import makeWASocket from "baileys/lib/Socket";
+import { MessageUpsertType, WAMessage } from "baileys/lib/Types";
+import { downloadMediaMessage } from "baileys/lib/Utils";
+import { MESSAGES_TYPES } from "../resource/message";
 import { IParsedMessage } from "../types";
 import * as Parse from "./parse";
 import * as Wrapper from "./wrapper";
 
+/**
+ * Becareful when downloading media, it can be a large file.
+ * Always check the file size before downloading.
+ */
 export const downloadMedia = async (
 	message: proto.IWebMessageInfo
-): Promise<Buffer> => {
-	return downloadMediaMessage(message, "buffer", {});
-};
-type IFindMessage = proto.Message.ExtendedTextMessage &
-	proto.Message.FutureProofMessage &
-	proto.Message.AudioMessage &
-	proto.Message.ImageMessage &
-	proto.Message.VideoMessage &
-	proto.Message.StickerMessage &
-	proto.Message.DocumentMessage &
-	proto.IMessage;
+): Promise<Buffer> => downloadMediaMessage(message, "buffer", {});
+
 export const findMessage = (
 	message: proto.IMessage,
 	parentKey?: keyof proto.IMessage
 ): IFindMessage => {
-	for (const mtype of IMessageArray) {
+	for (const mtype of MESSAGES_TYPES) {
 		const msg = parentKey ? message[parentKey] : message;
 		if (msg && (msg as proto.IMessage)[mtype]) {
 			const final = msg as proto.IWebMessageInfo;
-			if ((final as proto.IWebMessageInfo)?.message) {
-				return findMessage(final.message as proto.IMessage);
+			if ((final as proto.IWebMessageInfo)?.message?.[mtype]) {
+				return (((final as proto.IWebMessageInfo)?.message?.[
+					mtype
+				] as proto.IMessage) ||
+					(final as proto.IMessage)) as IFindMessage;
 			}
 			return (((final as proto.IMessage)[mtype] as proto.IMessage) ||
 				(final as proto.IMessage)) as IFindMessage;
@@ -59,7 +60,7 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 
 	const quotedMessage: Partial<IParsedMessage["quoted"]> = {
 		type,
-		text: msg?.caption || msg?.text || "",
+		text: msg?.conversation ?? msg?.caption ?? msg?.text ?? "",
 		mentionedJid: contextInfo.mentionedJid ?? [],
 		sender: contextInfo.participant,
 		phone: Parse.phoneNumber(contextInfo.participant),
@@ -70,6 +71,7 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 	if (msg?.mimetype) {
 		quotedMessage.media = {
 			mimetype: msg.mimetype,
+			size: Parse.calculateSize(msg.fileLength),
 			download: async () =>
 				downloadMedia({
 					message: contextInfo.quotedMessage,
@@ -104,3 +106,44 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 
 	return { ...quotedMessage, message: messageInfo } as T;
 };
+
+export const prepareMessage = (update: {
+	messages: WAMessage[];
+	type: MessageUpsertType;
+	requestId?: string;
+}): {
+	mtype: keyof proto.IMessage;
+	message: proto.IMessage;
+	messageInfo: proto.IWebMessageInfo;
+} | null => {
+	const { messages, type } = update;
+	if (type === "notify") {
+		if (!messages[0]?.message) {
+			return null;
+		}
+		const { message } = messages[0];
+
+		if (message?.conversation) {
+			return {
+				mtype: "conversation",
+				message: message,
+				messageInfo: messages[0],
+			};
+		}
+		for (const mtype of MESSAGES_TYPES) {
+			if (message[mtype]) {
+				return { mtype, message, messageInfo: messages[0] };
+			}
+		}
+	}
+	return null;
+};
+
+type IFindMessage = proto.Message.ExtendedTextMessage &
+	proto.Message.FutureProofMessage &
+	proto.Message.AudioMessage &
+	proto.Message.ImageMessage &
+	proto.Message.VideoMessage &
+	proto.Message.StickerMessage &
+	proto.Message.DocumentMessage &
+	proto.IMessage;
