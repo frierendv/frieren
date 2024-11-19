@@ -1,4 +1,5 @@
 import { AsYouType } from "libphonenumber-js";
+import Long from "long";
 
 const asYouType = new AsYouType();
 
@@ -15,4 +16,11 @@ export const safeString = (text: string | null | undefined) => {
 		return "";
 	}
 	return text.replace(/[\n\t\r]/g, "");
+};
+
+export const calculateSize = (size: number | Long | Long.Long) => {
+	if (Long.isLong(size)) {
+		return size.toNumber();
+	}
+	return size;
 };
