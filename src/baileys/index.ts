@@ -3,7 +3,6 @@ import {
 	DisconnectReason,
 	isJidBroadcast,
 	isJidNewsletter,
-	jidNormalizedUser,
 	makeCacheableSignalKeyStore,
 	makeInMemoryStore,
 	makeWASocket,
@@ -92,7 +91,9 @@ class WASocket extends EventEmitter {
 			Pino.destination(DEFAULT_LOG_FILE_PATH)
 		);
 		this._options = { ...rest };
+		/** Need manual binding on connected */
 		this.setupStore();
+
 		this.initialize();
 	}
 
@@ -227,15 +228,12 @@ class WASocket extends EventEmitter {
 		const { key, pushName } = messageInfo;
 		parsedMessage.name = Parse.safeString(pushName);
 		if (key.remoteJid) {
-			parsedMessage.sender = parsedMessage.from = key.fromMe
-				? jidNormalizedUser(this.sock!.user?.id)
-				: key.remoteJid;
+			parsedMessage.sender = parsedMessage.from = key.remoteJid;
 			parsedMessage.isGroup = key.remoteJid.includes("@g.us");
 
 			// If key.participant exists, it means the message is from a group
 			if (key.participant) {
 				parsedMessage.sender = key.participant;
-				parsedMessage.from = key.remoteJid;
 			}
 			parsedMessage.phone = Parse.phoneNumber(parsedMessage.sender);
 		}
