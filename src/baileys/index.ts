@@ -284,3 +284,4 @@ class WASocket extends EventEmitter {
 }
 
 export { WASocket, WASocketOptions };
+export { IParsedMessage, IParsedMedia } from "./types";
