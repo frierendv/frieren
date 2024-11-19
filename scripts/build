@@ -19,8 +19,10 @@ npm exec tsc-multi
 ### POST-COMPILE ###
 # restore the original file
 mv dist/lib.Socket.baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
-
+# Create a module type definition file
 cp dist/index.d.ts dist/index.d.mts
+# Replace the import statement in the module file
+sed -i 's/import { \(.*\) } from "baileys";/import baileys from "baileys";\nconst { \1 } = baileys;/g' dist/baileys/index.mjs
 
 # Make sure isomorphic module works
 (cd dist && node -e 'require("@frierendv/frieren")')
