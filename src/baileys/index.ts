@@ -1,5 +1,15 @@
 import { Boom } from "@hapi/boom";
 import makeWASocket, {
+	fetchLatestWaWebVersion,
+	isJidBroadcast,
+	isJidNewsletter,
+	jidNormalizedUser,
+	makeCacheableSignalKeyStore,
+	makeInMemoryStore,
+	useMultiFileAuthState,
+} from "baileys";
+import { proto } from "baileys/WAProto";
+import {
 	AuthenticationState,
 	BaileysEventEmitter,
 	BaileysEventMap,
@@ -8,14 +18,10 @@ import makeWASocket, {
 	MessageUpsertType,
 	UserFacingSocketConfig,
 	WAMessage,
-	isJidBroadcast,
-	isJidNewsletter,
-	jidNormalizedUser,
-	makeCacheableSignalKeyStore,
-	makeInMemoryStore,
-	proto,
-	useMultiFileAuthState,
-} from "baileys";
+	WAMessageContent,
+	WAMessageKey,
+	WAVersion,
+} from "baileys/lib/Types";
 import EventEmitter from "events";
 import Pino from "pino";
 import { Mutex } from "../shared/mutex";
@@ -23,10 +29,10 @@ import {
 	assignQuotedIfExist,
 	downloadMedia,
 	findMessage,
+	prepareMessage,
 } from "./lib/messages";
 import * as Parse from "./lib/parse";
 import * as Wrapper from "./lib/wrapper";
-import { IMessageArray } from "./resource/message";
 import { IParsedMessage } from "./types";
 
 type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
@@ -64,6 +70,7 @@ class WASocket extends EventEmitter {
 		return super.on(eventName, listener);
 	}
 
+	public waVersion: WAVersion = [2, 3000, 1017531287];
 	public sock: ReturnType<typeof makeWASocket> | null = null;
 	public store = makeInMemoryStore({});
 
@@ -101,43 +108,55 @@ class WASocket extends EventEmitter {
 
 	protected async initialize() {
 		try {
-			const auth = await useMultiFileAuthState(this.authPath);
-			this.state = auth.state;
+			const { state, saveCreds } = await useMultiFileAuthState(
+				this.authPath
+			);
+			this.state = state;
+
+			const { version } = await fetchLatestWaWebVersion({});
+			this.waVersion = version;
 
 			this.connect();
-			this.on("creds.update", auth.saveCreds);
+
+			this.on("creds.update", saveCreds);
 			this.on("connection.update", this.handleConnectionUpdate);
+			this.on("messages.upsert", this.handleMessagesUpsert);
 		} catch (error) {
 			this.logger.error("Initialization failed:", error);
 		}
 	}
 
-	private handleConnectionUpdate = (update: Partial<ConnectionState>) => {
-		const { connection, lastDisconnect } = update;
+	protected handleConnectionUpdate = (
+		connectionState: Partial<ConnectionState>
+	) => {
+		console.log({ connectionState });
+		const { connection, lastDisconnect } = connectionState;
+		if (connection === "open" && this.sock) {
+			this.sock.ev.emit = this.emit.bind(this);
+		}
 		if (connection === "close") {
 			const shouldReconnect =
 				(lastDisconnect?.error as Boom)?.output?.statusCode !==
 				DisconnectReason.loggedOut;
-			if (!shouldReconnect) {
-				this.logger.error("Connection closed. You are logged out.");
-			} else {
+			if (shouldReconnect) {
 				this.connect();
+			} else {
+				this.logger.error("Connection closed. You are logged out.");
 			}
 		}
 	};
 
 	protected connect() {
-		this.sock = makeWASocket({
+		const sock = makeWASocket({
 			printQRInTerminal: true,
 			shouldIgnoreJid: (jid) =>
 				isJidBroadcast(jid) || isJidNewsletter(jid),
+			syncFullHistory: false,
+			generateHighQualityLinkPreview: true,
+			getMessage: this.getMessage.bind(this),
+			version: this.waVersion,
 			...this._options,
 			auth: {
-				/**
-				 * state is not null, because
-				 * we call connect after assigned
-				 * the state
-				 */
 				creds: this.state!.creds,
 				keys: makeCacheableSignalKeyStore(
 					this.state!.keys,
@@ -145,18 +164,37 @@ class WASocket extends EventEmitter {
 				),
 			},
 		});
-
-		this.sock.ev.emit.bind(this);
-
-		this.sock.ev.on("messages.upsert", this.handleMessagesUpsert);
+		this.emitProcess(sock);
+		this.sock = sock;
 	}
 
-	private handleMessagesUpsert = (messages: {
+	async getMessage(key: WAMessageKey): Promise<WAMessageContent | undefined> {
+		if (this.store) {
+			const msg = await this.store.loadMessage(key.remoteJid!, key.id!);
+			return msg?.message || undefined;
+		}
+
+		// only if store is present
+		return proto.Message.fromObject({});
+	}
+
+	protected emitProcess(sock: ReturnType<typeof makeWASocket>) {
+		sock.ev.process((event) => {
+			const [eventName] = Object.keys(event) as
+				| [keyof BaileysEventMap]
+				| [undefined];
+			if (eventName) {
+				this.emit(eventName, event[eventName]);
+			}
+		});
+	}
+
+	protected handleMessagesUpsert = (messages: {
 		messages: WAMessage[];
 		type: MessageUpsertType;
 		requestId?: string;
 	}) => {
-		const info = this.prepareMessage(messages);
+		const info = prepareMessage(messages);
 		if (!info) {
 			return;
 		}
@@ -166,30 +204,6 @@ class WASocket extends EventEmitter {
 		);
 	};
 
-	private prepareMessage(update: {
-		messages: WAMessage[];
-		type: MessageUpsertType;
-		requestId?: string;
-	}): {
-		mtype: keyof proto.IMessage;
-		message: proto.IMessage;
-		messageInfo: proto.IWebMessageInfo;
-	} | null {
-		const { messages, type } = update;
-		if (type === "notify") {
-			if (!messages[0]?.message) {
-				return null;
-			}
-			const { message } = messages[0];
-			for (const mtype of IMessageArray) {
-				if (message[mtype]) {
-					return { mtype, message, messageInfo: messages[0] };
-				}
-			}
-		}
-		return null;
-	}
-
 	private parseMessage<MType extends keyof proto.IMessage>(
 		type: MType,
 		message: proto.IMessage,
@@ -198,7 +212,7 @@ class WASocket extends EventEmitter {
 		// Find the message from the message object
 		const msg = findMessage(message);
 
-		const text = msg?.conversation ?? msg?.caption ?? msg?.text ?? "";
+		const text = msg.conversation ?? msg.caption ?? msg.text ?? "";
 		const parsedMessage: Partial<IParsedMessage> = {
 			type,
 			text,
@@ -208,9 +222,10 @@ class WASocket extends EventEmitter {
 		};
 
 		// if the message is a media message
-		if (msg?.mimetype) {
+		if (msg.mimetype) {
 			parsedMessage.media = {
 				mimetype: msg.mimetype,
+				size: Parse.calculateSize(msg.fileLength),
 				download: async () => downloadMedia(messageInfo),
 			};
 		}
