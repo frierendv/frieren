@@ -1,7 +1,7 @@
 import { proto } from "baileys";
 
-export const IMessageArray: (keyof proto.IMessage)[] = [
-	"conversation",
+export const MESSAGES_TYPES: (keyof proto.IMessage)[] = [
+	// "conversation",
 	// "senderKeyDistributionMessage",
 	"imageMessage",
 	"contactMessage",
@@ -27,7 +27,7 @@ export const IMessageArray: (keyof proto.IMessage)[] = [
 	"templateButtonReplyMessage",
 	"productMessage",
 	"deviceSentMessage",
-	"messageContextInfo",
+	// "messageContextInfo",
 	"listMessage",
 	"viewOnceMessage",
 	"orderMessage",
@@ -70,22 +70,3 @@ export const IMessageArray: (keyof proto.IMessage)[] = [
 	"placeholderMessage",
 	"encEventUpdateMessage",
 ];
-
-export const MessageArray: (keyof typeof proto.Message)[] = [
-	"ExtendedTextMessage",
-	"FutureProofMessage",
-	"AudioMessage",
-	"ImageMessage",
-	"VideoMessage",
-	"StickerMessage",
-	"DocumentMessage",
-];
-
-export const MessageTypes: {
-	[key: string]: keyof proto.Message;
-} = {
-	videoMessage: "VideoMessage" as keyof proto.Message,
-	imageMessage: "ImageMessage" as keyof proto.Message,
-	audioMessage: "AudioMessage" as keyof proto.Message,
-	documentMessage: "DocumentMessage" as keyof proto.Message,
-};
