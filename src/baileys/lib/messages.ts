@@ -1,7 +1,6 @@
-import { proto } from "baileys/WAProto";
-import makeWASocket from "baileys/lib/Socket";
-import { MessageUpsertType, WAMessage } from "baileys/lib/Types";
-import { downloadMediaMessage } from "baileys/lib/Utils";
+import { downloadMediaMessage, proto } from "baileys";
+import type { MessageUpsertType, WAMessage } from "baileys";
+import type { WASocket as WASocketType } from "baileys";
 import { MESSAGES_TYPES } from "../resource/message";
 import { IParsedMessage } from "../types";
 import * as Parse from "./parse";
@@ -44,7 +43,7 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 		contextInfo: proto.IContextInfo | null | undefined;
 		messageInfo: proto.IWebMessageInfo;
 	},
-	sock: ReturnType<typeof makeWASocket>
+	sock: WASocketType
 ): T | null => {
 	if (!contextInfo?.participant || !contextInfo.quotedMessage) {
 		return null;

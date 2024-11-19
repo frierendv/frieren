@@ -1,20 +1,22 @@
 import { Boom } from "@hapi/boom";
-import makeWASocket, {
+import {
+	DisconnectReason,
 	fetchLatestWaWebVersion,
 	isJidBroadcast,
 	isJidNewsletter,
 	jidNormalizedUser,
 	makeCacheableSignalKeyStore,
 	makeInMemoryStore,
+	makeWASocket,
+	proto,
 	useMultiFileAuthState,
 } from "baileys";
-import { proto } from "baileys/WAProto";
-import {
+import type { WASocket as WASocketType } from "baileys";
+import type {
 	AuthenticationState,
 	BaileysEventEmitter,
 	BaileysEventMap,
 	ConnectionState,
-	DisconnectReason,
 	MessageUpsertType,
 	UserFacingSocketConfig,
 	WAMessage,
@@ -71,7 +73,7 @@ class WASocket extends EventEmitter {
 	}
 
 	public waVersion: WAVersion = [2, 3000, 1017531287];
-	public sock: ReturnType<typeof makeWASocket> | null = null;
+	public sock: WASocketType | null = null;
 	public store = makeInMemoryStore({});
 
 	constructor(options: WASocketOptions = {}) {
