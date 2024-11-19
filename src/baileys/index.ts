@@ -131,7 +131,6 @@ class WASocket extends EventEmitter {
 	protected handleConnectionUpdate = (
 		connectionState: Partial<ConnectionState>
 	) => {
-		console.log({ connectionState });
 		const { connection, lastDisconnect } = connectionState;
 		if (connection === "open" && this.sock) {
 			this.sock.ev.emit = this.emit.bind(this);
