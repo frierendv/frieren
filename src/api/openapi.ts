@@ -4,7 +4,7 @@ import { InternalError } from "../error";
 import { readEnv } from "../shared/read-env";
 import { paths } from "./spec";
 
-export interface ClientOptions {
+export interface APIClientOptions {
 	/**
 	 * Base URL to use for requests.
 	 *
@@ -24,7 +24,7 @@ export class APIClient {
 	protected readonly _apiKey: string | undefined;
 	protected readonly _client: ReturnType<typeof createClient<paths>>;
 
-	constructor({ baseUrl, apiKey }: ClientOptions) {
+	constructor({ baseUrl, apiKey }: APIClientOptions) {
 		this._apiKey = apiKey ?? readEnv("ITSROSE_API_KEY");
 		if (!this._apiKey) {
 			throw new InternalError("API key is required");
