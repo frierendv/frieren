@@ -1,7 +1,6 @@
 import { Boom } from "@hapi/boom";
 import {
 	DisconnectReason,
-	fetchLatestWaWebVersion,
 	isJidBroadcast,
 	isJidNewsletter,
 	jidNormalizedUser,
@@ -22,7 +21,6 @@ import type {
 	WAMessage,
 	WAMessageContent,
 	WAMessageKey,
-	WAVersion,
 } from "baileys/lib/Types";
 import EventEmitter from "events";
 import Pino from "pino";
@@ -72,7 +70,6 @@ class WASocket extends EventEmitter {
 		return super.on(eventName, listener);
 	}
 
-	public waVersion: WAVersion = [2, 3000, 1017531287];
 	public sock: WASocketType | null = null;
 	public store = makeInMemoryStore({});
 
@@ -115,9 +112,6 @@ class WASocket extends EventEmitter {
 			);
 			this.state = state;
 
-			const { version } = await fetchLatestWaWebVersion({});
-			this.waVersion = version;
-
 			this.connect();
 
 			this.on("creds.update", saveCreds);
@@ -155,7 +149,6 @@ class WASocket extends EventEmitter {
 			syncFullHistory: false,
 			generateHighQualityLinkPreview: true,
 			getMessage: this.getMessage.bind(this),
-			version: this.waVersion,
 			...this._options,
 			auth: {
 				creds: this.state!.creds,
