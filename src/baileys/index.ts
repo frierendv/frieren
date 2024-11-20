@@ -58,12 +58,12 @@ class WASocket extends EventEmitter {
 	private readonly authPath: string;
 	private readonly storePath: string;
 
-	public on<T extends keyof BaileysEventMap | "message.upsert-parsed">(
+	public on<T extends keyof BaileysEventMap | "message">(
 		eventName: T,
 		listener: (
-			_args: T extends "message.upsert-parsed"
+			_args: T extends "message"
 				? IParsedMessage
-				: BaileysEventMap[Exclude<T, "message.upsert-parsed">]
+				: BaileysEventMap[Exclude<T, "message">]
 		) => void
 	): this {
 		return super.on(eventName, listener);
@@ -143,7 +143,7 @@ class WASocket extends EventEmitter {
 	};
 
 	protected connect() {
-		const sock = makeWASocket({
+		this.sock = makeWASocket({
 			printQRInTerminal: true,
 			shouldIgnoreJid: (jid) =>
 				isJidBroadcast(jid) || isJidNewsletter(jid),
@@ -159,8 +159,7 @@ class WASocket extends EventEmitter {
 				),
 			},
 		});
-		this.emitProcess(sock);
-		this.sock = sock;
+		this.emitProcess(this.sock);
 	}
 
 	async getMessage(key: WAMessageKey): Promise<WAMessageContent | undefined> {
@@ -173,7 +172,7 @@ class WASocket extends EventEmitter {
 		return proto.Message.fromObject({});
 	}
 
-	protected emitProcess(sock: ReturnType<typeof makeWASocket>) {
+	protected emitProcess(sock: WASocketType) {
 		sock.ev.process((event) => {
 			const [eventName] = Object.keys(event) as
 				| [keyof BaileysEventMap]
@@ -194,7 +193,7 @@ class WASocket extends EventEmitter {
 			return;
 		}
 		this.emit(
-			"message.upsert-parsed",
+			"message",
 			this.parseMessage(info.mtype, info.message, info.messageInfo)
 		);
 	};
@@ -254,7 +253,7 @@ class WASocket extends EventEmitter {
 			Wrapper.wrap(
 				() =>
 					this.sock!.sendMessage(
-						parsedMessage.sender!,
+						parsedMessage.from!,
 						{
 							text,
 						},
@@ -270,7 +269,7 @@ class WASocket extends EventEmitter {
 		parsedMessage.delete = async () =>
 			Wrapper.wrap(
 				() =>
-					this.sock!.sendMessage(parsedMessage.sender!, {
+					this.sock!.sendMessage(parsedMessage.from!, {
 						delete: key,
 					}),
 				(error) => {
