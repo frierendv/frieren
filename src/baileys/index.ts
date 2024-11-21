@@ -234,6 +234,11 @@ class WASocket extends EventEmitter {
 			if (key.participant) {
 				parsedMessage.sender = key.participant;
 			}
+
+			if (key.fromMe) {
+				parsedMessage.sender = this.sock!.user!.id;
+			}
+
 			parsedMessage.phone = Parse.phoneNumber(parsedMessage.sender);
 		}
 
