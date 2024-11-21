@@ -67,8 +67,7 @@
 	"dependencies": {
 		"async-mutex": "^0.5.0",
 		"libphonenumber-js": "^1.11.14",
-		"openapi-fetch": "^0.13.0",
-		"undici": "^6.21.0"
+		"openapi-fetch": "^0.13.0"
 	},
 	"optionalDependencies": {
 		"baileys": "^6.7.9"
