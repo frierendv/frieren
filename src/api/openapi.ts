@@ -1,5 +1,4 @@
 import createClient from "openapi-fetch";
-import { fetch as undiciFetch } from "undici";
 import { InternalError } from "../error";
 import { readEnv } from "../shared/read-env";
 import { paths } from "./spec";
@@ -17,16 +16,21 @@ export interface APIClientOptions {
 	 * Default: `process.env.ITSROSE_API_KEY`
 	 */
 	apiKey?: string;
+	/**
+	 * Fetch implementation to use for requests.
+	 */
+	fetch?: typeof globalThis.fetch;
 }
 
 export class APIClient {
 	protected readonly _baseUrl: string | undefined;
-	protected readonly _apiKey: string | undefined;
 	protected readonly _client: ReturnType<typeof createClient<paths>>;
 
-	constructor({ baseUrl, apiKey }: APIClientOptions) {
-		this._apiKey = apiKey ?? readEnv("ITSROSE_API_KEY");
-		if (!this._apiKey) {
+	readonly #_apiKey: string | undefined;
+
+	constructor({ baseUrl, apiKey, fetch }: APIClientOptions) {
+		this.#_apiKey = apiKey ?? readEnv("ITSROSE_API_KEY");
+		if (!this.#_apiKey) {
 			throw new InternalError("API key is required");
 		}
 
@@ -37,14 +41,9 @@ export class APIClient {
 
 		this._client = createClient<paths>({
 			baseUrl: this._baseUrl,
-			fetch: (input: Request) =>
-				undiciFetch(input.url, {
-					method: input.method,
-					headers: input.headers,
-					body: input.body,
-				}),
+			fetch: fetch ?? globalThis.fetch.bind(globalThis),
 			headers: {
-				Authorization: `Bearer ${this._apiKey}`,
+				Authorization: `Bearer ${this.#_apiKey}`,
 			},
 		});
 	}
