@@ -1,32 +1,34 @@
 import { Boom } from "@hapi/boom";
 import {
 	DisconnectReason,
+	WAMessageStubType,
+	getAggregateVotesInPollMessage,
 	isJidBroadcast,
 	isJidNewsletter,
 	jidNormalizedUser,
 	makeCacheableSignalKeyStore,
-	makeInMemoryStore,
 	makeWASocket,
 	proto,
 	useMultiFileAuthState,
 } from "baileys";
-import type { WASocket as WASocketType } from "baileys";
 import type {
+	AnyMediaMessageContent,
+	AnyRegularMessageContent,
 	AuthenticationState,
-	BaileysEventEmitter,
 	BaileysEventMap,
 	ConnectionState,
 	MessageUpsertType,
-	MiscMessageGenerationOptions,
 	UserFacingSocketConfig,
 	WAMessage,
 	WAMessageContent,
 	WAMessageKey,
+	WAMessageUpdate,
 } from "baileys/lib/Types";
 import EventEmitter from "events";
 import Pino from "pino";
+import { MIMEType } from "util";
 import { Mutex } from "../shared/mutex";
-import { assignQuotedIfExist } from "./lib/message";
+import { assignQuotedIfExist, sendFile } from "./lib/message";
 import {
 	createMediaObject,
 	deleteQuotedMessage,
@@ -36,7 +38,15 @@ import {
 	replyToQuotedMessage,
 } from "./lib/message-utils";
 import * as Parse from "./lib/parse";
-import { IParsedMessage } from "./types";
+import { extractPrefix } from "./lib/prefix";
+import { makeInMemoryStore } from "./lib/store";
+import { Middleware } from "./middleware";
+import {
+	FDEvent,
+	FDEventListener,
+	IContextMessage,
+	WASocketType,
+} from "./types";
 
 type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 	/**
@@ -47,13 +57,17 @@ type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 	 * The path to store the store information.
 	 */
 	storePath?: string;
+	/**
+	 * Command prefix.
+	 */
+	prefix?: string | string[];
 };
 
 const DEFAULT_AUTH_INFO_PATH = "baileys_auth_info";
 const DEFAULT_STORE_FILE_PATH = "baileys_store.json";
 const DEFAULT_LOG_FILE_PATH = "./wa-logs.txt";
 
-class WASocket extends EventEmitter {
+class WASocket {
 	private _mutex = new Mutex();
 	private state: AuthenticationState | null = null;
 	private logger: Pino.Logger;
@@ -62,23 +76,23 @@ class WASocket extends EventEmitter {
 	private readonly authPath: string;
 	private readonly storePath: string;
 
-	public on<T extends keyof BaileysEventMap | "message">(
-		eventName: T,
-		listener: (
-			_args: T extends "message"
-				? IParsedMessage
-				: BaileysEventMap[Exclude<T, "message">]
-		) => void
-	): this {
-		return super.on(eventName, listener);
-	}
+	protected ev = new EventEmitter();
 
-	public sock!: WASocketType;
+	private middlewares: Middleware[] = [];
+
+	// eslint-disable-next-line no-unused-vars
+	private commands: Map<string, (ctx: IContextMessage) => Promise<void>> =
+		new Map();
+
+	public prefix: string | string[] | null = null;
+	public sock: WASocketType | null = null;
 	public store = makeInMemoryStore({});
 
 	constructor(options: WASocketOptions = {}) {
-		super();
-		const { authPath, storePath, ...rest } = options;
+		const { authPath, storePath, prefix, ...rest } = options;
+
+		this.prefix = prefix ?? null;
+
 		this.authPath = authPath ?? DEFAULT_AUTH_INFO_PATH;
 		this.storePath =
 			(storePath
@@ -95,22 +109,9 @@ class WASocket extends EventEmitter {
 			Pino.destination(DEFAULT_LOG_FILE_PATH)
 		);
 		this._options = { ...rest };
-		/** Need manual binding on connected */
-		this.setupStore();
-
-		this.initialize();
 	}
 
-	protected setupStore() {
-		this.store.readFromFile(this.storePath);
-		this._mutex.runWithInterval(
-			() => this.store.writeToFile(this.storePath),
-			10_000
-		);
-		this.store.bind(this as unknown as BaileysEventEmitter);
-	}
-
-	protected async initialize() {
+	public async launch() {
 		try {
 			const { state, saveCreds } = await useMultiFileAuthState(
 				this.authPath
@@ -121,36 +122,13 @@ class WASocket extends EventEmitter {
 
 			this.on("creds.update", saveCreds);
 			this.on("connection.update", this.handleConnectionUpdate);
+
 			this.on("messages.upsert", this.handleMessagesUpsert);
+			this.on("messages.update", this.handelMessageUpdate);
 		} catch (error) {
 			this.logger.error("Initialization failed:", error);
 		}
 	}
-
-	protected handleConnectionUpdate = (
-		connectionState: Partial<ConnectionState>
-	) => {
-		const { connection, lastDisconnect } = connectionState;
-
-		switch (connection) {
-			case "open":
-				this.sock.ev.emit = this.emit.bind(this);
-				this.sock.user!.id = jidNormalizedUser(this.sock.user!.id);
-				break;
-			case "close": {
-				const statusCode = (lastDisconnect?.error as Boom)?.output
-					?.statusCode;
-				const shouldReconnect =
-					statusCode !== DisconnectReason.loggedOut;
-				if (shouldReconnect) {
-					this.connect();
-				} else {
-					this.logger.error("Connection closed. You are logged out.");
-				}
-				break;
-			}
-		}
-	};
 
 	protected connect() {
 		this.sock = makeWASocket({
@@ -168,9 +146,59 @@ class WASocket extends EventEmitter {
 					this.logger
 				),
 			},
-		});
-		this.emitProcess(this.sock);
+		}) as WASocketType;
+		this.emitBaileysProcess(this.sock);
 	}
+
+	public setupStore(sock: WASocketType) {
+		this.store.readFromFile(this.storePath);
+		this._mutex.runWithInterval(
+			() => this.store.writeToFile(this.storePath),
+			10_000
+		);
+		this.store.bind(sock.ev);
+	}
+
+	protected handleConnectionUpdate = (
+		connectionState: Partial<ConnectionState>
+	) => {
+		const { connection, lastDisconnect } = connectionState;
+
+		switch (connection) {
+			case "open":
+				this.sock!.ev.emit = this.emit.bind(this);
+				this.sock!.user!.id = jidNormalizedUser(this.sock!.user!.id);
+				this.sock!.sendFile = async (
+					jid: string,
+					anyContent: string | Buffer | ArrayBuffer,
+					fileName?: string,
+					caption?: string,
+					quoted?: IContextMessage
+				) => {
+					return sendFile(
+						this.sock!,
+						jid,
+						anyContent,
+						fileName,
+						caption,
+						quoted
+					);
+				};
+				break;
+			case "close": {
+				const statusCode = (lastDisconnect?.error as Boom)?.output
+					?.statusCode;
+				const shouldReconnect =
+					statusCode !== DisconnectReason.loggedOut;
+				if (shouldReconnect) {
+					this.connect();
+				} else {
+					this.logger.error("Connection closed. You are logged out.");
+				}
+				break;
+			}
+		}
+	};
 
 	async getMessage(key: WAMessageKey): Promise<WAMessageContent | undefined> {
 		if (this.store) {
@@ -182,7 +210,7 @@ class WASocket extends EventEmitter {
 		return proto.Message.fromObject({});
 	}
 
-	protected emitProcess(sock: WASocketType) {
+	protected emitBaileysProcess(sock: WASocketType) {
 		sock.ev.process((event) => {
 			const [eventName] = Object.keys(event) as
 				| [keyof BaileysEventMap]
@@ -193,7 +221,7 @@ class WASocket extends EventEmitter {
 		});
 	}
 
-	protected handleMessagesUpsert = (messages: {
+	protected handleMessagesUpsert = async (messages: {
 		messages: WAMessage[];
 		type: MessageUpsertType;
 		requestId?: string;
@@ -202,48 +230,111 @@ class WASocket extends EventEmitter {
 		if (!info) {
 			return;
 		}
-		this.emit(
-			"message",
-			this.parseMessage(info.mtype, info.message, info.messageInfo)
+		const contextMessage = this.parseMessage(
+			info.mtype,
+			info.message,
+			info.messageInfo
 		);
+		await this.executeMiddlewares(contextMessage);
 	};
 
-	private parseMessage<MType extends keyof proto.IMessage>(
+	private async executeMiddlewares(message: IContextMessage) {
+		let index = -1;
+		const next = async () => {
+			index++;
+			if (index < this.middlewares.length) {
+				await this.middlewares[index]!(message, next);
+			} else {
+				await this.executeCommand(message);
+			}
+		};
+		await next();
+	}
+
+	private async executeCommand(message: IContextMessage) {
+		const { command, text } = extractPrefix(this.prefix, message.text);
+		const commandHandler = this.commands.get(command);
+		if (commandHandler) {
+			message.text = text;
+			message.args = text.split(" ");
+			await commandHandler(message);
+		} else {
+			this.emit("message", message);
+		}
+	}
+
+	protected handelMessageUpdate = async (messages: WAMessageUpdate[]) => {
+		for (const { key, update } of messages) {
+			if (update.messageStubType === WAMessageStubType.REVOKE) {
+				this.emit("message.revoke", key);
+				continue;
+			}
+			if (update.pollUpdates) {
+				const pollCreation = await this.getMessage(key);
+				if (pollCreation) {
+					this.emit(
+						"poll.update",
+						getAggregateVotesInPollMessage({
+							message: pollCreation,
+							pollUpdates: update.pollUpdates,
+						})
+					);
+				}
+			}
+		}
+	};
+
+	protected parseMessage<MType extends keyof proto.IMessage>(
 		type: MType,
 		message: proto.IMessage,
 		messageInfo: proto.IWebMessageInfo
-	): IParsedMessage {
+	): IContextMessage {
 		// Find the message from the message object
 		const msg = findMessage(message);
 
 		const text = extractMessageText(msg);
 		const media = createMediaObject(msg, messageInfo.message!);
-		const parsedMessage: Partial<IParsedMessage> = {
+
+		if (media) {
+			const mediaType = new MIMEType(media.mimetype);
+			this.emit(mediaType.type, media);
+		}
+
+		const contextMessage: Partial<IContextMessage> = {
 			type,
 			text,
 			args: text.split(" "),
 			media,
 			isGroup: false,
+			sock: this.sock!,
+			store: this.store,
 		};
 
 		const { key, pushName } = messageInfo;
-		parsedMessage.name = Parse.safeString(pushName);
+		contextMessage.name = Parse.safeString(pushName);
 		if (key.remoteJid) {
-			parsedMessage.sender = parsedMessage.from = jidNormalizedUser(
+			contextMessage.sender = contextMessage.from = jidNormalizedUser(
 				key.remoteJid
 			);
-			parsedMessage.isGroup = key.remoteJid.includes("@g.us");
+			contextMessage.isGroup = key.remoteJid.includes("@g.us");
 
 			// If key.participant exists, it means the message is from a group
 			if (key.participant) {
-				parsedMessage.sender = jidNormalizedUser(key.participant);
+				contextMessage.sender = jidNormalizedUser(key.participant);
 			}
 
 			if (key.fromMe) {
-				parsedMessage.sender = jidNormalizedUser(this.sock!.user!.id);
+				contextMessage.sender = jidNormalizedUser(this.sock!.user!.id);
 			}
 
-			parsedMessage.phone = Parse.phoneNumber(parsedMessage.sender);
+			Object.assign(
+				contextMessage,
+				Parse.phoneNumber(contextMessage.sender)
+			);
+		}
+
+		if (text) {
+			this.emit("text", text);
 		}
 
 		// We extract the text from the message
@@ -253,29 +344,89 @@ class WASocket extends EventEmitter {
 				contextInfo?: proto.IContextInfo;
 			}
 		)?.contextInfo;
-		parsedMessage.mentionedJid = contextInfo?.mentionedJid ?? [];
-		parsedMessage.quoted = assignQuotedIfExist<IParsedMessage["quoted"]>(
+		contextMessage.mentionedJid = contextInfo?.mentionedJid ?? [];
+		contextMessage.quoted = assignQuotedIfExist<IContextMessage["quoted"]>(
 			{ messageInfo, contextInfo },
-			this.sock!
+			this.sock!,
+			this.store
 		);
 
-		parsedMessage.reply = async (
+		contextMessage.reply = async (
 			text: string,
-			opts?: MiscMessageGenerationOptions
+			opts?: AnyRegularMessageContent & AnyMediaMessageContent
 		) =>
 			replyToQuotedMessage(
-				parsedMessage.from!,
+				contextMessage.from!,
 				text,
-				opts,
 				this.sock!,
-				messageInfo
+				messageInfo,
+				opts
 			);
 
-		parsedMessage.delete = async () =>
-			deleteQuotedMessage(parsedMessage, messageInfo, this.sock!);
-		return { ...parsedMessage, message: messageInfo } as IParsedMessage;
+		contextMessage.delete = async () =>
+			deleteQuotedMessage(contextMessage, messageInfo, this.sock!);
+
+		return { ...contextMessage, message: messageInfo } as IContextMessage;
+	}
+
+	public use(middleware: Middleware) {
+		this.middlewares.push(middleware);
+	}
+
+	public command(
+		name: string,
+		// eslint-disable-next-line no-unused-vars
+		handler: (ctx: IContextMessage) => Promise<void>
+	) {
+		this.commands.set(name, handler);
+	}
+
+	public on<T extends keyof BaileysEventMap | FDEvent>(
+		eventName: T,
+		listener: (
+			_args: T extends FDEvent
+				? FDEventListener<T>
+				: T extends keyof BaileysEventMap
+					? BaileysEventMap[T]
+					: never | BaileysEventMap[Exclude<T, FDEvent>]
+		) => void
+	): this {
+		this.ev.on(eventName, listener);
+		return this;
+	}
+
+	public once<T extends keyof BaileysEventMap | FDEvent>(
+		eventName: T,
+		listener: (
+			_args: T extends FDEvent
+				? FDEventListener<T>
+				: T extends keyof BaileysEventMap
+					? BaileysEventMap[T]
+					: never | BaileysEventMap[Exclude<T, FDEvent>]
+		) => void
+	): this {
+		this.ev.once(eventName, listener);
+		return this;
+	}
+
+	public off<T extends keyof BaileysEventMap | FDEvent>(
+		eventName: T,
+		listener: (
+			_args: T extends FDEvent
+				? FDEventListener<T>
+				: T extends keyof BaileysEventMap
+					? BaileysEventMap[T]
+					: never | BaileysEventMap[Exclude<T, FDEvent>]
+		) => void
+	): this {
+		this.ev.off(eventName, listener);
+		return this;
+	}
+
+	public emit(event: string | symbol, ...args: unknown[]): boolean {
+		return this.ev.emit(event, ...args);
 	}
 }
 
 export { WASocket, WASocketOptions };
-export { IParsedMessage, IParsedMedia } from "./types";
+export { IContextMessage, IContextMedia } from "./types";
