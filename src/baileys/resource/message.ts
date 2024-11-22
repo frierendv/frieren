@@ -70,3 +70,11 @@ export const MESSAGES_TYPES: (keyof proto.IMessage)[] = [
 	"placeholderMessage",
 	"encEventUpdateMessage",
 ];
+
+export const SUPPORTED_MEDIA_TYPES = [
+	"image",
+	"video",
+	"audio",
+	"document",
+	"sticker",
+] as const;
