@@ -38,7 +38,7 @@ export const assignQuotedIfExist = <T extends IParsedMessage["quoted"]>(
 	const quotedMessage: Partial<IParsedMessage["quoted"]> = {
 		type,
 		text,
-		mentionedJid: contextInfo.mentionedJid ?? [],
+		mentionedJid: msg?.contextInfo?.mentionedJid ?? [],
 		sender: contextInfo.participant,
 		phone: Parse.phoneNumber(contextInfo.participant),
 		from: messageInfo.key.remoteJid!,

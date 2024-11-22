@@ -1,4 +1,4 @@
-import { proto } from "baileys";
+import { MiscMessageGenerationOptions, proto } from "baileys";
 
 export interface IParsedMedia {
 	/**
@@ -63,7 +63,8 @@ export interface IParsedMessageBase {
 	 * @param {String} text the message to reply to.
 	 */
 	reply: (
-		_text: string | ""
+		_text: string | "",
+		_opts?: MiscMessageGenerationOptions
 	) => Promise<proto.WebMessageInfo | undefined | void>;
 	/**
 	 * Force delete the message.
@@ -74,6 +75,10 @@ export interface IParsedMessageBase {
 	 * **Note:** Some permissions are required to delete the message.
 	 */
 	delete: () => Promise<void>;
+	/**
+	 * If the message contains a mention.
+	 */
+	mentionedJid: string[] | never[];
 	/**
 	 * Represents the original message.
 	 */
@@ -89,13 +94,5 @@ export interface IParsedMessage extends IParsedMessageBase {
 	 * Exists if the message is quoting another message.
 	 * If not, it will be `null`.
 	 */
-	quoted:
-		| (Omit<IParsedMessageBase, "name"> & {
-				/**
-				 * Ids of users mentioned in the quoted message.
-				 * If no one is mentioned, it will be an empty array.
-				 */
-				mentionedJid: string[] | never[];
-		  })
-		| null;
+	quoted: Omit<IParsedMessageBase, "name"> | null;
 }

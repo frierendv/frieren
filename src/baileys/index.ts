@@ -247,6 +247,7 @@ class WASocket extends EventEmitter {
 				contextInfo?: proto.IContextInfo;
 			}
 		)?.contextInfo;
+		parsedMessage.mentionedJid = contextInfo?.mentionedJid ?? [];
 		parsedMessage.quoted = assignQuotedIfExist<IParsedMessage["quoted"]>(
 			{ messageInfo, contextInfo },
 			this.sock!
