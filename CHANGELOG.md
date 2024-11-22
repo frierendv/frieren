@@ -1,4 +1,11 @@
-## v1.0.3 (2024-11-22)
+## 1.3.0 (2024-11-22)
+
+### New feature
+
+- refactor connection handling to improve state management and user ID normalization([`ea8f7fd`](https://github.com/frierendv/frieren/commit/ea8f7fda8f24462c154a3653d1814a9c796c049d)) (by FrierenDv)
+- enhance message parsing to include mentioned JIDs and optional parameters([`aac81c5`](https://github.com/frierendv/frieren/commit/aac81c5cd2886ad15c83405fba429ebcc281daec)) (by FrierenDv)
+
+## v1.2.0 (2024-11-22)
 
 ### New feature
 
@@ -7,7 +14,7 @@
 - add message utility functions for handling media and message operations([`306cd0a`](https://github.com/frierendv/frieren/commit/306cd0a48fe4b22f31671829dfd7aa043c408849)) (by FrierenDv)
 - update sender assignment logic in WASocket to handle messages from the user([`44edca8`](https://github.com/frierendv/frieren/commit/44edca8b3711f2ac19bbaf2b8b050450a3b6127b)) (by FrierenDv)
 
-## v1.0.2 (2024-11-21)
+## v1.1.0 (2024-11-21)
 
 ### New feature
 
