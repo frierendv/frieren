@@ -131,17 +131,23 @@ class WASocket extends EventEmitter {
 		connectionState: Partial<ConnectionState>
 	) => {
 		const { connection, lastDisconnect } = connectionState;
-		if (connection === "open" && this.sock) {
-			this.sock.ev.emit = this.emit.bind(this);
-		}
-		if (connection === "close") {
-			const shouldReconnect =
-				(lastDisconnect?.error as Boom)?.output?.statusCode !==
-				DisconnectReason.loggedOut;
-			if (shouldReconnect) {
-				this.connect();
-			} else {
-				this.logger.error("Connection closed. You are logged out.");
+
+		switch (connection) {
+			case "open":
+				this.sock.ev.emit = this.emit.bind(this);
+				this.sock.user!.id = jidNormalizedUser(this.sock.user!.id);
+				break;
+			case "close": {
+				const statusCode = (lastDisconnect?.error as Boom)?.output
+					?.statusCode;
+				const shouldReconnect =
+					statusCode !== DisconnectReason.loggedOut;
+				if (shouldReconnect) {
+					this.connect();
+				} else {
+					this.logger.error("Connection closed. You are logged out.");
+				}
+				break;
 			}
 		}
 	};
