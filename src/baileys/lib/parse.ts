@@ -1,4 +1,10 @@
-import { AsYouType } from "libphonenumber-js";
+import {
+	AsYouType,
+	CountryCallingCode,
+	CountryCode,
+	E164Number,
+	NationalNumber,
+} from "libphonenumber-js";
 import Long from "long";
 
 const asYouType = new AsYouType();
@@ -8,7 +14,15 @@ export const phoneNumber = (phone: string) => {
 	const phoneNumber = asYouType.input(
 		phone.startsWith("+") ? phone : `+${phone}`
 	);
-	return phoneNumber;
+	const others = asYouType.getNumber();
+
+	return {
+		phone: phoneNumber,
+		country: others?.country as CountryCode,
+		countryCallingCode: others?.countryCallingCode as CountryCallingCode,
+		nationalNumber: others?.nationalNumber as NationalNumber,
+		number: others?.number as E164Number,
+	};
 };
 
 export const safeString = (text: string | null | undefined) => {
