@@ -1,5 +1,4 @@
 /** https://github.com/WhiskeySockets/Baileys/blob/master/src/Store/make-ordered-dictionary.ts */
-
 // eslint-disable-next-line no-unused-vars
 function makeOrderedDictionary<T>(idGetter: (item: T) => string) {
 	const array: T[] = [];

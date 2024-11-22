@@ -1,6 +1,7 @@
 /** https://github.com/WhiskeySockets/Baileys/blob/master/src/Store/make-in-memory-store.ts */
 import KeyedDB from "@adiwajshing/keyed-db";
 import type { Comparable } from "@adiwajshing/keyed-db/lib/Types";
+import { proto } from "baileys";
 import {
 	DEFAULT_CONNECTION_CONFIG,
 	WAMessageStubType,
@@ -8,12 +9,10 @@ import {
 	jidNormalizedUser,
 	makeWASocket,
 	md5,
-	proto,
 	toNumber,
 	updateMessageWithReaction,
 	updateMessageWithReceipt,
 } from "baileys";
-import { ObjectRepository } from "baileys/lib/Store/object-repository";
 import type {
 	BaileysEventEmitter,
 	Chat,
@@ -26,13 +25,12 @@ import type {
 	WAMessageKey,
 } from "baileys/lib/Types";
 import { Label } from "baileys/lib/Types/Label";
-import {
-	LabelAssociation,
-	LabelAssociationType,
-} from "baileys/lib/Types/LabelAssociation";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import type { Logger } from "pino";
 import makeOrderedDictionary from "./make-ordered-dictionary";
+import { ObjectRepository } from "./object-repository";
+import type { LabelAssociation } from "./types";
+import { LabelAssociationType } from "./types";
 
 type WASocket = ReturnType<typeof makeWASocket>;
 
