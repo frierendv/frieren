@@ -1,6 +1,46 @@
-import { MiscMessageGenerationOptions, proto } from "baileys";
+/* eslint-disable no-unused-vars */
+import {
+	AnyMediaMessageContent,
+	AnyRegularMessageContent,
+	proto,
+} from "baileys";
+import type { WASocket } from "baileys";
+import {
+	CountryCallingCode,
+	CountryCode,
+	E164Number,
+	NationalNumber,
+} from "libphonenumber-js";
 
-export interface IParsedMedia {
+export type WASocketType = WASocket & {
+	sendFile: (
+		/**
+		 * The JID of the person/group to send the file to.
+		 */
+		jid: string,
+		/**
+		 * The file to send.
+		 */
+		anyContent: string | Buffer | ArrayBuffer,
+		/**
+		 * The file name.
+		 */
+		fileName?: string,
+		/**
+		 * The file caption.
+		 */
+		caption?: string,
+		/**
+		 * The message to quote.
+		 */
+		quoted?: IContextMessage
+	) => Promise<proto.WebMessageInfo | undefined>;
+};
+
+/**
+ * Represents media associated with a message.
+ */
+export interface IContextMedia {
 	/**
 	 * The media type.
 	 */
@@ -13,27 +53,61 @@ export interface IParsedMedia {
 	 * Download the media.
 	 * @returns {Promise<Buffer>} the media buffer.
 	 */
-	download: () => Promise<Buffer>;
+	download(): Promise<Buffer>;
 }
 
-export interface IParsedMessageBase {
+/**
+ * Function types for message operations.
+ */
+
+export type EditMsgFunction = (text: string) => Promise<void>;
+export type DeleteMsgFunction = () => Promise<void>;
+export type ReplyFunction = (
+	text: string | "",
+
+	opts?: AnyRegularMessageContent & AnyMediaMessageContent
+) => Promise<[EditMsgFunction, DeleteMsgFunction]>;
+
+/**
+ * Base interface for parsed messages.
+ */
+export interface IContextMessageBase {
 	/**
 	 * Representing who sending this message.
+	 * In format JID.
 	 *
 	 * example: `1234567890@s.whatsapp.net`
 	 */
 	sender: string;
 	/**
 	 * Representing where the message is from.
+	 * In format JID.
+	 *
 	 * If the message is from a group, it will be the group id. Else, it will be the sender id.
 	 */
 	from: string;
 	/**
 	 * Representing the sender phone number.
 	 *
-	 * In format: `+1234567890`
+	 * In format INTERNATIONAL.
 	 */
 	phone: string;
+	/**
+	 * Representing the sender country code.
+	 */
+	country: CountryCode;
+	/**
+	 * Representing the sender country calling code.
+	 */
+	countryCallingCode: CountryCallingCode;
+	/**
+	 * Representing the sender national number.
+	 */
+	nationalNumber: NationalNumber;
+	/**
+	 * Representing the sender number.
+	 */
+	number: E164Number;
 	/**
 	 * Representing the sender name.
 	 */
@@ -45,7 +119,7 @@ export interface IParsedMessageBase {
 	/**
 	 * The message text/caption.
 	 */
-	text: string | undefined;
+	text: string;
 	/**
 	 * By default it will be split by space.
 	 *
@@ -56,16 +130,12 @@ export interface IParsedMessageBase {
 	 * The message media.
 	 * If the message is not a media, it will be `null`.
 	 */
-	media: IParsedMedia | null;
+	media: IContextMedia | null;
 	/**
-	 * Reply to the message.
-	 *
-	 * @param {String} text the message to reply to.
+	 * Reply to the message
+	 * then return the function to edit the sent message.
 	 */
-	reply: (
-		_text: string | "",
-		_opts?: MiscMessageGenerationOptions
-	) => Promise<proto.WebMessageInfo | undefined | void>;
+	reply: ReplyFunction;
 	/**
 	 * Force delete the message.
 	 *
@@ -74,7 +144,7 @@ export interface IParsedMessageBase {
 	 *
 	 * **Note:** Some permissions are required to delete the message.
 	 */
-	delete: () => Promise<void>;
+	delete: DeleteMsgFunction;
 	/**
 	 * If the message contains a mention.
 	 */
@@ -85,7 +155,18 @@ export interface IParsedMessageBase {
 	message: proto.IWebMessageInfo;
 }
 
-export interface IParsedMessage extends IParsedMessageBase {
+/**
+ * Extended interface for parsed messages with additional properties.
+ */
+export interface IContextMessage extends IContextMessageBase {
+	/**
+	 * The socket instance.
+	 */
+	sock: WASocketType;
+	/**
+	 * The store instance.
+	 */
+	store: ReturnType<typeof import("./lib/store").makeInMemoryStore>;
 	/**
 	 * If the message is from a group.
 	 */
@@ -94,5 +175,50 @@ export interface IParsedMessage extends IParsedMessageBase {
 	 * Exists if the message is quoting another message.
 	 * If not, it will be `null`.
 	 */
-	quoted: Omit<IParsedMessageBase, "name"> | null;
+	quoted: IContextMessageBase | null;
 }
+
+/**
+ * Supported event types.
+ */
+export type FDEvent =
+	| "message"
+	| "text"
+	| "media"
+	| "image"
+	| "video"
+	| "audio"
+	| "document"
+	| "sticker"
+	| "contact"
+	| "poll.update";
+
+/**
+ * Listener type for specific events.
+ */
+export type FDEventListener<T extends FDEvent> = T extends "message"
+	? IContextMessage
+	: T extends "text"
+		? string
+		: T extends
+					| "media"
+					| "image"
+					| "video"
+					| "audio"
+					| "document"
+					| "sticker"
+			? IContextMedia
+			: T extends "contact"
+				? string
+				: T extends "poll.update"
+					? ReturnType<
+							typeof import("baileys").getAggregateVotesInPollMessage
+						>
+					: never;
+
+/**
+ * Mapping of events to their corresponding data types.
+ */
+export type FDEventMap = {
+	[T in FDEvent]: FDEventListener<T>;
+};
