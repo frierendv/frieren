@@ -21,9 +21,9 @@ export const findMessage = (
 	}
 
 	for (const mtype of MESSAGES_TYPES) {
-		const content = (msg as proto.IMessage)[mtype];
+		const content = (msg as proto.IMessage)[mtype] as IFindMessage;
 		if (content) {
-			return content as IFindMessage;
+			return content?.message ? findMessage(content.message) : content;
 		}
 	}
 	return message as IFindMessage;
