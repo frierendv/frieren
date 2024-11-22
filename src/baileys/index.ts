@@ -3,6 +3,7 @@ import {
 	DisconnectReason,
 	isJidBroadcast,
 	isJidNewsletter,
+	jidNormalizedUser,
 	makeCacheableSignalKeyStore,
 	makeInMemoryStore,
 	makeWASocket,
@@ -16,6 +17,7 @@ import type {
 	BaileysEventMap,
 	ConnectionState,
 	MessageUpsertType,
+	MiscMessageGenerationOptions,
 	UserFacingSocketConfig,
 	WAMessage,
 	WAMessageContent,
@@ -24,14 +26,16 @@ import type {
 import EventEmitter from "events";
 import Pino from "pino";
 import { Mutex } from "../shared/mutex";
+import { assignQuotedIfExist } from "./lib/message";
 import {
-	assignQuotedIfExist,
-	downloadMedia,
+	createMediaObject,
+	deleteQuotedMessage,
+	extractMessageText,
 	findMessage,
 	prepareMessage,
-} from "./lib/messages";
+	replyToQuotedMessage,
+} from "./lib/message-utils";
 import * as Parse from "./lib/parse";
-import * as Wrapper from "./lib/wrapper";
 import { IParsedMessage } from "./types";
 
 type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
@@ -69,7 +73,7 @@ class WASocket extends EventEmitter {
 		return super.on(eventName, listener);
 	}
 
-	public sock: WASocketType | null = null;
+	public sock!: WASocketType;
 	public store = makeInMemoryStore({});
 
 	constructor(options: WASocketOptions = {}) {
@@ -206,37 +210,31 @@ class WASocket extends EventEmitter {
 		// Find the message from the message object
 		const msg = findMessage(message);
 
-		const text = msg.conversation ?? msg.caption ?? msg.text ?? "";
+		const text = extractMessageText(msg);
+		const media = createMediaObject(msg, messageInfo.message!);
 		const parsedMessage: Partial<IParsedMessage> = {
 			type,
 			text,
 			args: text.split(" "),
-			media: null,
+			media,
 			isGroup: false,
 		};
-
-		// if the message is a media message
-		if (msg.mimetype) {
-			parsedMessage.media = {
-				mimetype: msg.mimetype,
-				size: Parse.calculateSize(msg.fileLength),
-				download: async () => downloadMedia(messageInfo),
-			};
-		}
 
 		const { key, pushName } = messageInfo;
 		parsedMessage.name = Parse.safeString(pushName);
 		if (key.remoteJid) {
-			parsedMessage.sender = parsedMessage.from = key.remoteJid;
+			parsedMessage.sender = parsedMessage.from = jidNormalizedUser(
+				key.remoteJid
+			);
 			parsedMessage.isGroup = key.remoteJid.includes("@g.us");
 
 			// If key.participant exists, it means the message is from a group
 			if (key.participant) {
-				parsedMessage.sender = key.participant;
+				parsedMessage.sender = jidNormalizedUser(key.participant);
 			}
 
 			if (key.fromMe) {
-				parsedMessage.sender = this.sock!.user!.id;
+				parsedMessage.sender = jidNormalizedUser(this.sock!.user!.id);
 			}
 
 			parsedMessage.phone = Parse.phoneNumber(parsedMessage.sender);
@@ -254,33 +252,20 @@ class WASocket extends EventEmitter {
 			this.sock!
 		);
 
-		parsedMessage.reply = async (text: string) =>
-			Wrapper.wrap(
-				() =>
-					this.sock!.sendMessage(
-						parsedMessage.from!,
-						{
-							text,
-						},
-						{
-							quoted: messageInfo,
-						}
-					),
-				(error) => {
-					this.logger.error("Reply failed:", error);
-				}
+		parsedMessage.reply = async (
+			text: string,
+			opts?: MiscMessageGenerationOptions
+		) =>
+			replyToQuotedMessage(
+				parsedMessage.from!,
+				text,
+				opts,
+				this.sock!,
+				messageInfo
 			);
 
 		parsedMessage.delete = async () =>
-			Wrapper.wrap(
-				() =>
-					this.sock!.sendMessage(parsedMessage.from!, {
-						delete: key,
-					}),
-				(error) => {
-					this.logger.error("Delete failed:", error);
-				}
-			);
+			deleteQuotedMessage(parsedMessage, messageInfo, this.sock!);
 		return { ...parsedMessage, message: messageInfo } as IParsedMessage;
 	}
 }
