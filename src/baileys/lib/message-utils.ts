@@ -1,13 +1,17 @@
 import { downloadMediaMessage, proto } from "baileys";
 import type {
+	AnyRegularMessageContent,
 	MessageUpsertType,
-	MiscMessageGenerationOptions,
 	WAMessage,
+	WASocket as WASocketType,
 } from "baileys";
-import type { WASocket as WASocketType } from "baileys";
-import { jidNormalizedUser } from "baileys";
 import { MESSAGES_TYPES } from "../resource/message";
-import { IParsedMedia, IParsedMessage } from "../types";
+import {
+	DeleteMsgFunction,
+	EditMsgFunction,
+	IContextMedia,
+	IContextMessage,
+} from "../types";
 import * as Parse from "./parse";
 import * as Wrapper from "./wrapper";
 
@@ -59,7 +63,7 @@ export const extractMessageText = (msg: IFindMessage): string => {
 export const createMediaObject = (
 	msg: IFindMessage,
 	message: proto.IMessage
-): IParsedMedia | null => {
+): IContextMedia | null => {
 	if (!msg.mimetype) {
 		return null;
 	}
@@ -78,30 +82,41 @@ export const createMediaObject = (
  */
 export const deleteQuotedMessage = async (
 	parsedMessage:
-		| Partial<IParsedMessage>
-		| Partial<NonNullable<IParsedMessage["quoted"]>>,
+		| Partial<IContextMessage>
+		| Partial<NonNullable<IContextMessage["quoted"]>>,
 	messageInfo: proto.IWebMessageInfo,
 	sock: WASocketType,
 	contextInfo?: proto.IContextInfo
 ): Promise<void> =>
 	Wrapper.wrap(
 		() =>
-			sock.sendMessage(parsedMessage.from!, {
-				delete: {
-					...messageInfo.key,
-					remoteJid: parsedMessage.from!,
-					fromMe:
-						parsedMessage.sender! ===
-						jidNormalizedUser(sock.user!.id),
-					...(contextInfo && {
-						id: contextInfo.stanzaId,
-						...(parsedMessage.from?.endsWith("@g.us") && {
-							participant: contextInfo.participant,
+			sock
+				.sendMessage(parsedMessage.from!, {
+					delete: {
+						...messageInfo.key,
+						remoteJid: parsedMessage.from!,
+						fromMe: parsedMessage.sender! === sock.user!.id,
+						...(contextInfo && {
+							id: contextInfo.stanzaId,
+							...(parsedMessage.from?.endsWith("@g.us") && {
+								participant: contextInfo.participant,
+							}),
 						}),
-					}),
-				},
-			}),
+					},
+				})
+				.then(() => {}),
 		(error) => sock.logger.error("Delete failed:", error)
+	);
+
+const editMessage = async (
+	sock: WASocketType,
+	jid: string,
+	text = "",
+	edit: proto.IMessageKey
+): Promise<void> =>
+	Wrapper.wrap(
+		() => sock.sendMessage(jid, { text, edit }).then(() => {}),
+		(error) => sock.logger.error("Update failed:", error)
 	);
 
 /**
@@ -109,21 +124,42 @@ export const deleteQuotedMessage = async (
  */
 export const replyToQuotedMessage = async (
 	jid: string,
-	text: string,
-	opts: MiscMessageGenerationOptions | undefined,
+	text = "",
 	sock: WASocketType,
-	message: proto.IWebMessageInfo
-): Promise<void> =>
+	message: proto.IWebMessageInfo,
+	opts?: AnyRegularMessageContent
+): Promise<[EditMsgFunction, DeleteMsgFunction]> =>
 	Wrapper.wrap(
-		() =>
-			sock.sendMessage(
+		async () => {
+			const msgOptions = {
+				text,
+			};
+			const replyMsg = await sock.sendMessage(
 				jid,
-				{ text: text || "" },
+				{
+					...msgOptions,
+					...opts,
+				},
 				{
 					quoted: message,
-					...opts,
 				}
-			),
+			);
+			if (!replyMsg) {
+				throw new Error("Failed to reply to the message.");
+			}
+			return [
+				(text: string) => editMessage(sock, jid, text, replyMsg.key),
+				() =>
+					deleteQuotedMessage(
+						{
+							from: replyMsg.key.remoteJid!,
+							sender: sock.user!.id,
+						},
+						replyMsg,
+						sock
+					),
+			];
+		},
 		(error) => sock.logger.error("Reply failed:", error)
 	);
 
