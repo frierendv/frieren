@@ -1,8 +1,15 @@
 {
 	"name": "@frierendv/frieren",
-	"version": "1.3.1",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"version": "1.5.0",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.mjs",
+	"types": "./dist/esm/index.d.ts",
+	"exports": {
+		".": {
+			"require": "./dist/cjs/index.js",
+			"import": "./dist/esm/index.mjs"
+		}
+	},
 	"engines": {
 		"node": ">=18.0.0"
 	},
@@ -25,16 +32,6 @@
 		"registry": "https://npm.pkg.github.com/"
 	},
 	"description": "",
-	"exports": {
-		".": {
-			"require": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
-			},
-			"types": "./dist/index.d.ts",
-			"default": "./dist/index.mjs"
-		}
-	},
 	"files": [
 		"dist"
 	],

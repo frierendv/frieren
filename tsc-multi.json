@@ -1,7 +1,21 @@
 {
 	"targets": [
-		{ "extname": ".js", "module": "commonjs" },
-		{ "extname": ".mjs", "module": "esnext" }
-	],
-	"projects": ["tsconfig.build.json"]
+		{
+			"extname": ".js",
+			"module": "CommonJS",
+			"target": "ES2020",
+			"outDir": "./dist/cjs",
+			"rootDir": "./src",
+			"esModuleInterop": true,
+			"strict": true
+		},
+		{
+			"extname": ".mjs",
+			"module": "ESNext",
+			"target": "ES2020",
+			"outDir": "./dist/esm",
+			"rootDir": "./src",
+			"strict": true
+		}
+	]
 }

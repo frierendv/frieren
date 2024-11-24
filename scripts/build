@@ -19,15 +19,15 @@ npm exec tsc-multi
 ### POST-COMPILE ###
 # restore the original file
 mv dist/lib.Socket.baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
+
 # Create a module type definition file
-cp dist/index.d.ts dist/index.d.mts
+cp dist/esm/index.d.ts dist/esm/index.d.mts
 # Replace the import statement in the module file
-sed -i 's/import { \(.*\) } from "baileys";/import baileys from "baileys";\nconst { \1 } = baileys;/g' dist/baileys/index.mjs
 
-sed -i 's/import { \(.*\) } from "file-type";/import fileTypePkg from "file-type";\nconst { \1 } = fileTypePkg;/g' dist/baileys/lib/socket-utils.mjs
-
-sed -i 's/import { proto } from "baileys";/import protoPkg from "baileys";\nconst { proto } = protoPkg;/g' dist/baileys/lib/store/make-in-memory-store.mjs
+sed -i 's/import { \(.*\) } from "baileys";/import baileys from "baileys";\nconst { \1 } = baileys;/g' dist/esm/baileys/index.mjs
+sed -i 's/import { \(.*\) } from "file-type";/import fileTypePkg from "file-type";\nconst { \1 } = fileTypePkg;/g' dist/esm/baileys/lib/socket-utils.mjs
+sed -i 's/import { proto } from "baileys";/import protoPkg from "baileys";\nconst { proto } = protoPkg;/g' dist/esm/baileys/lib/store/make-in-memory-store.mjs
 
 # Make sure isomorphic module works
-(cd dist && node -e 'require("@frierendv/frieren")')
-(cd dist && node -e 'import("@frierendv/frieren")' --input-type=module)
+(cd dist/cjs && node -e 'require("@frierendv/frieren")')
+(cd dist/esm && node -e 'import("@frierendv/frieren")' --input-type=module)
