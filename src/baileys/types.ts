@@ -22,18 +22,20 @@ export type WASocketType = WASocket & {
 		 * The file to send.
 		 */
 		anyContent: string | Buffer | ArrayBuffer,
-		/**
-		 * The file name.
-		 */
-		fileName?: string,
-		/**
-		 * The file caption.
-		 */
-		caption?: string,
-		/**
-		 * The message to quote.
-		 */
-		quoted?: IContextMessage
+		opts?: {
+			/**
+			 * The file name.
+			 */
+			fileName?: string;
+			/**
+			 * The file caption.
+			 */
+			caption?: string;
+			/**
+			 * The message to quote.
+			 */
+			quoted?: IContextMessage;
+		}
 	) => Promise<proto.WebMessageInfo | undefined>;
 };
 
@@ -156,9 +158,11 @@ export interface IContextMessageBase {
 }
 
 /**
- * Extended interface for parsed messages with additional properties.
+ * Extended interface for parsed messages.
  */
-export interface IContextMessage extends IContextMessageBase {
+export interface IContextMessage
+	extends IContextMessageBase,
+		Partial<ICommand> {
 	/**
 	 * The socket instance.
 	 */
@@ -222,3 +226,14 @@ export type FDEventListener<T extends FDEvent> = T extends "message"
 export type FDEventMap = {
 	[T in FDEvent]: FDEventListener<T>;
 };
+
+export interface ICommand {
+	prefix: string;
+	command: string;
+}
+export type CommandHandler = (ctx: IContextMessage) => Promise<void> | void;
+
+export type Middleware = (
+	ctx: IContextMessage,
+	next: () => Promise<void>
+) => Promise<void> | void;
