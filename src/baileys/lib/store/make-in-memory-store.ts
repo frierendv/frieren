@@ -1,5 +1,5 @@
 /** https://github.com/WhiskeySockets/Baileys/blob/master/src/Store/make-in-memory-store.ts */
-import KeyedDB from "@adiwajshing/keyed-db";
+import { default as KeyedDB } from "@adiwajshing/keyed-db";
 import type { Comparable } from "@adiwajshing/keyed-db/lib/Types";
 import { proto } from "baileys";
 import {
@@ -74,7 +74,10 @@ export const makeInMemoryStore = (config: BaileysInMemoryStoreConfig) => {
 		config.logger ||
 		DEFAULT_CONNECTION_CONFIG.logger.child({ stream: "in-mem-store" });
 
-	const chats = new KeyedDB(chatKey, (c) => c.id) as KeyedDB<Chat, string>;
+	const chats = new KeyedDB(chatKey, (c: Chat) => c.id) as KeyedDB<
+		Chat,
+		string
+	>;
 	const messages: { [_: string]: ReturnType<typeof makeMessagesDictionary> } =
 		{};
 	const contacts: { [_: string]: Contact } = {};
