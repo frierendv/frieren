@@ -54,12 +54,17 @@ export const assignQuotedIfExist = <T extends IContextMessage["quoted"]>(
 	};
 
 	quotedMessage.delete = async () =>
-		deleteQuotedMessage(quotedMessage, messageInfo, sock, contextInfo);
+		await deleteQuotedMessage(
+			quotedMessage,
+			messageInfo,
+			sock,
+			contextInfo
+		);
 	quotedMessage.reply = async (
 		text: string,
 		opts?: AnyRegularMessageContent
 	) =>
-		replyToQuotedMessage(
+		await replyToQuotedMessage(
 			messageInfo.key.remoteJid!,
 			text,
 			sock,
