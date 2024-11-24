@@ -266,21 +266,19 @@ class WASocket {
 		}
 
 		const { prefix, command } = extractPrefix(this.prefix, text);
+		const restOfText = text.slice(prefix.length + command.length).trim();
+		Object.assign(ctx, {
+			prefix,
+			command,
+			text: restOfText,
+			args: restOfText.split(" "),
+		});
 		if (!prefix) {
 			this.emit("message", ctx);
 			return;
 		}
 		const commandHandler = this.commands.get(command);
 		if (commandHandler && !commandHandler.ignorePrefix) {
-			const restOfText = text
-				.slice(prefix.length + command.length)
-				.trim();
-			Object.assign(ctx, {
-				prefix,
-				command,
-				text: restOfText,
-				args: restOfText.split(" "),
-			});
 			await commandHandler.handler(ctx);
 			return;
 		}
@@ -388,7 +386,7 @@ class WASocket {
 			...contextMessage,
 			sock: this.sock,
 			store: this.store,
-			ctx: messageInfo,
+			message: messageInfo,
 		} as IContextMessage;
 	}
 
