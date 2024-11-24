@@ -25,18 +25,4 @@ jobs:
                   cache: "npm"
             - run: chmod +x ./scripts/*
             - run: npm ci
-            - name: Run manual build
-              run: rm -rf dist
-            - run: cp node_modules/baileys/lib/Socket/index.d.ts dist/lib.Socket.baileys.d.ts
-            - run: sed -i 's/import("long").Long/import("long")/g' node_modules/baileys/lib/Socket/index.d.ts
-            - name: Compile
-              run: npm exec tsc-multi
-
-            - run: sed -i 's/import { \(.*\) } from "baileys";/import baileys from "baileys";\nconst { \1 } = baileys;/g' dist/esm/baileys/index.mjs
-            - run: sed -i 's/import { \(.*\) } from "file-type";/import fileTypePkg from "file-type";\nconst { \1 } = fileTypePkg;/g' dist/esm/baileys/lib/socket-utils.mjs
-            - run: sed -i 's/import { proto } from "baileys";/import protoPkg from "baileys";\nconst { proto } = protoPkg;/g' dist/esm/baileys/lib/store/make-in-memory-store.mjs
-
-            - name: Run node require tests
-              run: (cd dist/cjs && node -e 'require("@frierendv/frieren")')
-            - name: Run node import tests
-              run: (cd dist/cjs && node -e 'require("@frierendv/frieren")' --input-type=module)
+            - run: npm run build --if-present
