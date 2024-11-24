@@ -2,7 +2,7 @@
 	"name": "@frierendv/frieren",
 	"version": "1.5.0",
 	"main": "./dist/index.js",
-	"module": "./dist/index.mjs",
+	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
@@ -10,8 +10,12 @@
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
 			},
+			"import": {
+				"types": "./dist/index.d.mts",
+				"default": "./dist/index.js"
+			},
 			"types": "./dist/index.d.ts",
-			"default": "./dist/index.mjs"
+			"default": "./dist/index.js"
 		}
 	},
 	"engines": {
@@ -61,12 +65,10 @@
 		"semantic-release": "^24.2.0",
 		"ts-jest": "^29.2.5",
 		"ts-node": "^10.9.2",
-		"tsc-multi": "^1.1.0",
 		"typescript": "^5.6.3",
 		"typescript-eslint": "^8.15.0"
 	},
 	"dependencies": {
-		"@adiwajshing/keyed-db": "^0.2.4",
 		"async-mutex": "^0.5.0",
 		"file-type": "^16.5.4",
 		"libphonenumber-js": "^1.11.14",
