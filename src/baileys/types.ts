@@ -162,7 +162,16 @@ export interface IContextMessageBase {
  */
 export interface IContextMessage
 	extends IContextMessageBase,
-		Partial<ICommand> {
+		Partial<{
+			/**
+			 * used to get the prefix.
+			 */
+			prefix: string;
+			/**
+			 * The command name.
+			 */
+			command: string;
+		}> {
 	/**
 	 * The socket instance.
 	 */
