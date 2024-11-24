@@ -228,10 +228,27 @@ export type FDEventMap = {
 };
 
 export interface ICommand {
-	prefix: string;
+	/**
+	 * If true, the command will ignore the prefix and can be executed directly.
+	 */
+	ignorePrefix?: boolean;
+	/**
+	 * The command name.
+	 */
 	command: string;
 }
+
+export interface ICommandHandler extends ICommand {
+	/**
+	 * The function that handles the command execution.
+	 */
+	handler: CommandHandler;
+}
+
 export type CommandHandler = (ctx: IContextMessage) => Promise<void> | void;
+export interface ICommandHandler extends ICommand {
+	handler: CommandHandler;
+}
 
 export type Middleware = (
 	ctx: IContextMessage,
