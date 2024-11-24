@@ -37,12 +37,15 @@ import {
 	replyToQuotedMessage,
 } from "./lib/message-utils";
 import * as Parse from "./lib/parse";
-import { extractPrefix } from "./lib/prefix";
+import { extractPrefix, normalizePrefix } from "./lib/prefix";
 import { makeInMemoryStore } from "./lib/store";
+import { TrieNode } from "./trie-node";
 import {
 	CommandHandler,
 	FDEvent,
 	FDEventListener,
+	ICommand,
+	ICommandHandler,
 	IContextMessage,
 	Middleware,
 	WASocketType,
@@ -82,13 +85,12 @@ class WASocket {
 	private readonly authPath: string;
 	private readonly storePath: string;
 
-	protected ev = new EventEmitter();
-
 	private middlewares: Middleware[] = [];
+	private commands: Map<string, ICommandHandler> = new Map();
 
-	private commands: Map<string, CommandHandler> = new Map();
-
-	public prefix: string | string[] | null = "/";
+	protected trieNode = new TrieNode();
+	protected prefix: string[] = [];
+	protected ev = new EventEmitter();
 	/**
 	 * Exist after the connection is established.
 	 */
@@ -98,7 +100,7 @@ class WASocket {
 	constructor(options: WASocketOptions = {}) {
 		const { authPath, storePath, prefix, logger, ...rest } = options;
 
-		this.prefix = prefix ?? null;
+		this.prefix = normalizePrefix(prefix);
 
 		this.authPath = authPath ?? DEFAULT_AUTH_INFO_PATH;
 		this.storePath =
@@ -198,7 +200,7 @@ class WASocket {
 				if (shouldReconnect) {
 					this.connect();
 				} else {
-					this.logger.error("Connection closed. You are logged out.");
+					this.logger.info("Connection closed.");
 				}
 				break;
 			}
@@ -233,31 +235,56 @@ class WASocket {
 		await this.executeMiddlewares(contextMessage);
 	};
 
-	private async executeMiddlewares(message: IContextMessage) {
+	private async executeMiddlewares(ctx: IContextMessage) {
 		let index = -1;
 		const next = async () => {
 			index++;
 			if (index < this.middlewares.length) {
-				await this.middlewares[index]!(message, next);
+				await this.middlewares[index]!(ctx, next);
 			} else {
-				await this.executeCommand(message);
+				await this.executeCommand(ctx);
 			}
 		};
 		await next();
 	}
 
-	private async executeCommand(message: IContextMessage) {
-		const { prefix, command, text, args } = extractPrefix(
-			this.prefix,
-			message.text
-		);
-		Object.assign(message, { prefix, text, args });
-		const commandHandler = this.commands.get(command);
-		if (commandHandler) {
-			await commandHandler(message);
-		} else {
-			this.emit("message", message);
+	private async executeCommand(ctx: IContextMessage) {
+		const text = ctx.text;
+
+		const handler = this.trieNode.find(text);
+		if (handler) {
+			const { command } = handler;
+			const restOfText = text.slice(command.length).trim();
+			Object.assign(ctx, {
+				prefix: "",
+				command,
+				text: restOfText,
+				args: restOfText.split(" "),
+			});
+			await handler.handler(ctx);
+			return;
 		}
+
+		const { prefix, command } = extractPrefix(this.prefix, text);
+		if (!prefix) {
+			this.emit("message", ctx);
+			return;
+		}
+		const commandHandler = this.commands.get(command);
+		if (commandHandler && !commandHandler.ignorePrefix) {
+			const restOfText = text
+				.slice(prefix.length + command.length)
+				.trim();
+			Object.assign(ctx, {
+				prefix,
+				command,
+				text: restOfText,
+				args: restOfText.split(" "),
+			});
+			await commandHandler.handler(ctx);
+			return;
+		}
+		this.emit("message", ctx);
 	}
 
 	protected handelMessageUpdate = async (messages: WAMessageUpdate[]) => {
@@ -279,11 +306,11 @@ class WASocket {
 
 	protected parseMessage<MType extends keyof proto.IMessage>(
 		type: MType,
-		message: proto.IMessage,
+		ctx: proto.IMessage,
 		messageInfo: proto.IWebMessageInfo
 	): IContextMessage {
-		// Find the message from the message object
-		const msg = findMessage(message);
+		// Find the message from the ctx object
+		const msg = findMessage(ctx);
 
 		const text = extractMessageText(msg);
 		const media = createMediaObject(msg, messageInfo.message!);
@@ -328,10 +355,10 @@ class WASocket {
 			this.emit("text", text);
 		}
 
-		// We extract the text from the message
-		// in this case, we are checking if the message is a text message
+		// We extract the text from the ctx
+		// in this case, we are checking if the ctx is a text ctx
 		const contextInfo = (
-			message[type] as proto.IMessage & {
+			ctx[type] as proto.IMessage & {
 				contextInfo?: proto.IContextInfo;
 			}
 		)?.contextInfo;
@@ -361,16 +388,37 @@ class WASocket {
 			...contextMessage,
 			sock: this.sock,
 			store: this.store,
-			message: messageInfo,
+			ctx: messageInfo,
 		} as IContextMessage;
 	}
 
+	/**
+	 * Add a middleware to the bot.
+	 * @param middleware The middleware to add.
+	 */
 	public use(middleware: Middleware) {
 		this.middlewares.push(middleware);
 	}
 
-	public command(name: string, handler: CommandHandler) {
-		this.commands.set(name, handler);
+	/**
+	 * Register a command.
+	 * @param command The command to register.
+	 * @param handler The handler for the command.
+	 */
+	public command(command: string | ICommand, handler: CommandHandler) {
+		if (typeof command === "object") {
+			const { command: _command } = command;
+			if (!_command) {
+				console.error(`${command} is not a valid command.`);
+				return;
+			}
+			this.commands.set(_command, { ...command, handler });
+			if (command.ignorePrefix) {
+				this.trieNode.add(_command, { ...command, handler });
+			}
+			return;
+		}
+		this.commands.set(command, { command, handler });
 	}
 
 	public on<T extends keyof BaileysEventMap | FDEvent>(
@@ -419,6 +467,12 @@ class WASocket {
 		return this.ev.emit(event, ...args);
 	}
 
+	public stop() {
+		this.store.writeToFile(this.storePath);
+		this.ev.removeAllListeners();
+		this.sock.ws.close();
+	}
+
 	private async getMessage(
 		key: WAMessageKey
 	): Promise<WAMessageContent | undefined> {
@@ -434,13 +488,20 @@ class WASocket {
 
 export { WASocket, WASocketOptions };
 export {
+	CommandHandler,
+	FDEvent,
+	FDEventListener,
+	ICommand,
+	ICommandHandler,
 	IContextMessage,
+	Middleware,
+	WASocketType,
+};
+export {
 	IContextMedia,
 	IContextMessageBase,
 	EditMsgFunction,
 	DeleteMsgFunction,
 	ReplyFunction,
-	FDEvent,
-	FDEventListener,
 	FDEventMap,
 } from "./types";
