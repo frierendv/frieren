@@ -1,4 +1,4 @@
-import { Boom } from "@hapi/boom";
+import type { Boom } from "@hapi/boom";
 import {
 	DisconnectReason,
 	getAggregateVotesInPollMessage,
