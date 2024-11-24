@@ -26,11 +26,16 @@ client.command("start", async (ctx) => {
  await ctx.reply("Hello World!");
 });
 
+client.command({
+ ignorePrefix: true,
+ command: "help",
+}, async (ctx) => {
+ await ctx.reply("This is help command!");
+});
+
 // listen all message except command
 client.on("message", async (ctx) => {
- console.log(ctx);
-
- await ctx.sock.sendMessage(ctx.from, { text: "Hello World!" });
+ await ctx.sock.sendMessage(ctx.from, { text: "Hello World!" }, { quoted: ctx.message });
 });
 
 client.on("media", (media) => {
