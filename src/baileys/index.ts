@@ -87,7 +87,10 @@ class WASocket {
 	private commands: Map<string, CommandHandler> = new Map();
 
 	public prefix: string | string[] | null = null;
-	public sock: WASocketType | null = null;
+	/**
+	 * Exist after the connection is established.
+	 */
+	public sock!: WASocketType;
 	public store = makeInMemoryStore({});
 
 	constructor(options: WASocketOptions = {}) {
@@ -172,9 +175,9 @@ class WASocket {
 
 		switch (connection) {
 			case "open":
-				this.sock!.ev.emit = this.emit.bind(this);
-				this.sock!.user!.id = jidNormalizedUser(this.sock!.user!.id);
-				this.sock!.sendFile = async (
+				this.sock.ev.emit = this.emit.bind(this);
+				this.sock.user!.id = jidNormalizedUser(this.sock.user!.id);
+				this.sock.sendFile = async (
 					jid: string,
 					anyContent: string | Buffer | ArrayBuffer,
 					fileName?: string,
@@ -182,14 +185,14 @@ class WASocket {
 					quoted?: IContextMessage
 				) =>
 					sendFile(
-						this.sock!,
+						this.sock,
 						jid,
 						anyContent,
 						fileName,
 						caption,
 						quoted
 					);
-				this.setupStore(this.sock!);
+				this.setupStore(this.sock);
 				break;
 			case "close": {
 				const statusCode = (lastDisconnect?.error as Boom)?.output
@@ -317,7 +320,7 @@ class WASocket {
 			}
 
 			if (key.fromMe) {
-				contextMessage.sender = jidNormalizedUser(this.sock!.user!.id);
+				contextMessage.sender = jidNormalizedUser(this.sock.user!.id);
 			}
 
 			Object.assign(
@@ -340,7 +343,7 @@ class WASocket {
 		contextMessage.mentionedJid = contextInfo?.mentionedJid ?? [];
 		contextMessage.quoted = assignQuotedIfExist<IContextMessage["quoted"]>(
 			{ messageInfo, contextInfo },
-			this.sock!,
+			this.sock,
 			this.store
 		);
 
@@ -361,7 +364,7 @@ class WASocket {
 
 		return {
 			...contextMessage,
-			sock: this.sock!,
+			sock: this.sock,
 			store: this.store,
 			message: messageInfo,
 		} as IContextMessage;
