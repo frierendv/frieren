@@ -14,7 +14,7 @@ cp node_modules/baileys/lib/Socket/index.d.ts dist/lib.Socket.baileys.d.ts
 sed -i 's/import("long").Long/import("long")/g' node_modules/baileys/lib/Socket/index.d.ts
 
 # compile.
-npm exec tsc-multi
+npm exec tsc
 
 ### POST-COMPILE ###
 # restore the original file
@@ -22,11 +22,6 @@ mv dist/lib.Socket.baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
 
 # Create a module type definition file
 cp dist/index.d.ts dist/index.d.mts
-# Replace the import statement in the module file
-
-sed -i 's/import { \(.*\) } from "baileys";/import baileys from "baileys";\nconst { \1 } = baileys;/g' dist/baileys/index.mjs
-sed -i 's/import { \(.*\) } from "file-type";/import fileTypePkg from "file-type";\nconst { \1 } = fileTypePkg;/g' dist/baileys/lib/socket-utils.mjs
-sed -i 's/import { proto } from "baileys";/import protoPkg from "baileys";\nconst { proto } = protoPkg;/g' dist/baileys/lib/store/make-in-memory-store.mjs
 
 # Make sure isomorphic module works
 (cd dist && node -e 'require("@frierendv/frieren")')
