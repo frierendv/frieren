@@ -68,8 +68,13 @@
 		"openapi-fetch": "^0.13.0",
 		"undici": "^6.21.0"
 	},
-	"optionalDependencies": {
+	"peerDependencies": {
 		"baileys": "^6.7.9"
+	},
+	"peerDependenciesMeta": {
+		"baileys": {
+			"optional": true
+		}
 	},
 	"overrides": {
 		"@whiskeysockets/eslint-config": {
