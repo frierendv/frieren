@@ -1,7 +1,6 @@
 import { Boom } from "@hapi/boom";
 import {
 	DisconnectReason,
-	WAMessageStubType,
 	getAggregateVotesInPollMessage,
 	isJidBroadcast,
 	isJidNewsletter,
@@ -28,6 +27,7 @@ import EventEmitter from "events";
 import Pino from "pino";
 import { MIMEType } from "util";
 import { Mutex } from "../shared/mutex";
+import { CommandHandler } from "./command";
 import { assignQuotedIfExist, sendFile } from "./lib/message";
 import {
 	createMediaObject,
@@ -61,6 +61,10 @@ type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 	 * Command prefix.
 	 */
 	prefix?: string | string[];
+	/**
+	 * The logger instance.
+	 */
+	logger?: Pino.Logger;
 };
 
 const DEFAULT_AUTH_INFO_PATH = "baileys_auth_info";
@@ -80,16 +84,14 @@ class WASocket {
 
 	private middlewares: Middleware[] = [];
 
-	// eslint-disable-next-line no-unused-vars
-	private commands: Map<string, (ctx: IContextMessage) => Promise<void>> =
-		new Map();
+	private commands: Map<string, CommandHandler> = new Map();
 
 	public prefix: string | string[] | null = null;
 	public sock: WASocketType | null = null;
 	public store = makeInMemoryStore({});
 
 	constructor(options: WASocketOptions = {}) {
-		const { authPath, storePath, prefix, ...rest } = options;
+		const { authPath, storePath, prefix, logger, ...rest } = options;
 
 		this.prefix = prefix ?? null;
 
@@ -100,14 +102,18 @@ class WASocket {
 					? storePath
 					: `${storePath}.json`
 				: null) ?? DEFAULT_STORE_FILE_PATH;
-		this.logger = Pino(
-			{
-				timestamp: () => `,"time":"${new Date().toISOString()}"`,
-				level:
-					process.env.NODE_ENV === "development" ? "trace" : "silent",
-			},
-			Pino.destination(DEFAULT_LOG_FILE_PATH)
-		);
+		this.logger =
+			logger ??
+			Pino(
+				{
+					timestamp: () => `,"time":"${new Date().toISOString()}"`,
+					level:
+						process.env.NODE_ENV === "development"
+							? "trace"
+							: "silent",
+				},
+				Pino.destination(DEFAULT_LOG_FILE_PATH)
+			);
 		this._options = { ...rest };
 	}
 
@@ -150,7 +156,7 @@ class WASocket {
 		this.emitBaileysProcess(this.sock);
 	}
 
-	public setupStore(sock: WASocketType) {
+	protected setupStore(sock: WASocketType) {
 		this.store.readFromFile(this.storePath);
 		this._mutex.runWithInterval(
 			() => this.store.writeToFile(this.storePath),
@@ -174,8 +180,8 @@ class WASocket {
 					fileName?: string,
 					caption?: string,
 					quoted?: IContextMessage
-				) => {
-					return sendFile(
+				) =>
+					sendFile(
 						this.sock!,
 						jid,
 						anyContent,
@@ -183,7 +189,7 @@ class WASocket {
 						caption,
 						quoted
 					);
-				};
+				this.setupStore(this.sock!);
 				break;
 			case "close": {
 				const statusCode = (lastDisconnect?.error as Boom)?.output
@@ -199,16 +205,6 @@ class WASocket {
 			}
 		}
 	};
-
-	async getMessage(key: WAMessageKey): Promise<WAMessageContent | undefined> {
-		if (this.store) {
-			const msg = await this.store.loadMessage(key.remoteJid!, key.id!);
-			return msg?.message || undefined;
-		}
-
-		// only if store is present
-		return proto.Message.fromObject({});
-	}
 
 	protected emitBaileysProcess(sock: WASocketType) {
 		sock.ev.process((event) => {
@@ -252,11 +248,14 @@ class WASocket {
 	}
 
 	private async executeCommand(message: IContextMessage) {
-		const { command, text } = extractPrefix(this.prefix, message.text);
+		const { command, text, args } = extractPrefix(
+			this.prefix,
+			message.text
+		);
 		const commandHandler = this.commands.get(command);
 		if (commandHandler) {
-			message.text = text;
-			message.args = text.split(" ");
+			Object.assign(message, { text, args });
+			console.log({ command, text, args });
 			await commandHandler(message);
 		} else {
 			this.emit("message", message);
@@ -265,10 +264,6 @@ class WASocket {
 
 	protected handelMessageUpdate = async (messages: WAMessageUpdate[]) => {
 		for (const { key, update } of messages) {
-			if (update.messageStubType === WAMessageStubType.REVOKE) {
-				this.emit("message.revoke", key);
-				continue;
-			}
 			if (update.pollUpdates) {
 				const pollCreation = await this.getMessage(key);
 				if (pollCreation) {
@@ -306,8 +301,6 @@ class WASocket {
 			args: text.split(" "),
 			media,
 			isGroup: false,
-			sock: this.sock!,
-			store: this.store,
 		};
 
 		const { key, pushName } = messageInfo;
@@ -366,18 +359,19 @@ class WASocket {
 		contextMessage.delete = async () =>
 			deleteQuotedMessage(contextMessage, messageInfo, this.sock!);
 
-		return { ...contextMessage, message: messageInfo } as IContextMessage;
+		return {
+			...contextMessage,
+			sock: this.sock!,
+			store: this.store,
+			message: messageInfo,
+		} as IContextMessage;
 	}
 
 	public use(middleware: Middleware) {
 		this.middlewares.push(middleware);
 	}
 
-	public command(
-		name: string,
-		// eslint-disable-next-line no-unused-vars
-		handler: (ctx: IContextMessage) => Promise<void>
-	) {
+	public command(name: string, handler: CommandHandler) {
 		this.commands.set(name, handler);
 	}
 
@@ -426,7 +420,27 @@ class WASocket {
 	public emit(event: string | symbol, ...args: unknown[]): boolean {
 		return this.ev.emit(event, ...args);
 	}
+
+	async getMessage(key: WAMessageKey): Promise<WAMessageContent | undefined> {
+		if (this.store) {
+			const msg = await this.store.loadMessage(key.remoteJid!, key.id!);
+			return msg?.message || undefined;
+		}
+
+		// only if store is present
+		return proto.Message.fromObject({});
+	}
 }
 
 export { WASocket, WASocketOptions };
-export { IContextMessage, IContextMedia } from "./types";
+export {
+	IContextMessage,
+	IContextMedia,
+	IContextMessageBase,
+	EditMsgFunction,
+	DeleteMsgFunction,
+	ReplyFunction,
+	FDEvent,
+	FDEventListener,
+	FDEventMap,
+} from "./types";

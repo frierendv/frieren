@@ -1,26 +1,36 @@
 export const extractPrefix = (
-	prefixs: string | string[] | null,
+	prefixes: string | string[] | null,
 	text: string
 ) => {
 	let command = "";
-	if (!prefixs) {
-		return {
-			command,
-			text,
-		};
+	// should be safe
+	const DEFAULT_RETURN = {
+		command,
+		text,
+		args: text.split(" "),
+	};
+	if (!prefixes) {
+		return DEFAULT_RETURN;
 	}
 	const prefix =
-		(Array.isArray(prefixs)
-			? prefixs.find((prefix) => text.startsWith(prefix))
-			: prefixs) ?? "";
+		(Array.isArray(prefixes)
+			? prefixes.find((prefix) => text.startsWith(prefix))
+			: prefixes) ?? "";
 
-	let _text = text.slice(prefix.length).trim();
+	if (!prefix) {
+		return DEFAULT_RETURN;
+	}
+
+	text = text.slice(prefix.length).trim();
 	const args = text.split(" ");
 
 	command = args.shift()?.toLowerCase() ?? "";
-	_text = text.replace(command, "").trim();
+	// remove prefix and command from text
+	text = text.replace(command, "").trim();
+
 	return {
 		command,
-		text: _text,
+		text,
+		args,
 	};
 };
