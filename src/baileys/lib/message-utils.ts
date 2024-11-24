@@ -88,7 +88,7 @@ export const deleteQuotedMessage = async (
 	sock: WASocketType,
 	contextInfo?: proto.IContextInfo
 ): Promise<void> =>
-	Wrapper.wrap(
+	await Wrapper.wrap(
 		() =>
 			sock
 				.sendMessage(parsedMessage.from!, {
@@ -129,7 +129,7 @@ export const replyToQuotedMessage = async (
 	message: proto.IWebMessageInfo,
 	opts?: AnyRegularMessageContent
 ): Promise<[EditMsgFunction, DeleteMsgFunction]> =>
-	Wrapper.wrap(
+	await Wrapper.wrap(
 		async () => {
 			const msgOptions = {
 				text,
