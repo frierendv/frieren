@@ -74,10 +74,13 @@ export const sendFile = async (
 	sock: WASocketType,
 	jid: string,
 	anyContent: string | Buffer | ArrayBuffer,
-	fileName?: string,
-	caption?: string,
-	quoted?: IContextMessage
+	opts?: {
+		fileName?: string;
+		caption?: string;
+		quoted?: IContextMessage;
+	}
 ) => {
+	const { fileName, caption, quoted } = opts ?? {};
 	const { path, type, unlink, ...rest } = await getSendFileOptions(
 		anyContent,
 		fileName,
