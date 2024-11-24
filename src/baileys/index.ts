@@ -27,7 +27,6 @@ import EventEmitter from "events";
 import Pino from "pino";
 import { MIMEType } from "util";
 import { Mutex } from "../shared/mutex";
-import { CommandHandler } from "./command";
 import { assignQuotedIfExist, sendFile } from "./lib/message";
 import {
 	createMediaObject,
@@ -40,11 +39,12 @@ import {
 import * as Parse from "./lib/parse";
 import { extractPrefix } from "./lib/prefix";
 import { makeInMemoryStore } from "./lib/store";
-import { Middleware } from "./middleware";
 import {
+	CommandHandler,
 	FDEvent,
 	FDEventListener,
 	IContextMessage,
+	Middleware,
 	WASocketType,
 } from "./types";
 
@@ -58,7 +58,9 @@ type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 	 */
 	storePath?: string;
 	/**
-	 * Command prefix.
+	 * The command prefix.
+	 *
+	 * If not provided, no prefix will be used a.k.a. `text.split.(" ")[0]` will be treated as a command.
 	 */
 	prefix?: string | string[];
 	/**
@@ -86,7 +88,7 @@ class WASocket {
 
 	private commands: Map<string, CommandHandler> = new Map();
 
-	public prefix: string | string[] | null = null;
+	public prefix: string | string[] | null = "/";
 	/**
 	 * Exist after the connection is established.
 	 */
@@ -180,18 +182,12 @@ class WASocket {
 				this.sock.sendFile = async (
 					jid: string,
 					anyContent: string | Buffer | ArrayBuffer,
-					fileName?: string,
-					caption?: string,
-					quoted?: IContextMessage
-				) =>
-					sendFile(
-						this.sock,
-						jid,
-						anyContent,
-						fileName,
-						caption,
-						quoted
-					);
+					opts?: {
+						fileName?: string;
+						caption?: string;
+						quoted?: IContextMessage;
+					}
+				) => sendFile(this.sock, jid, anyContent, opts);
 				this.setupStore(this.sock);
 				break;
 			case "close": {
@@ -251,14 +247,13 @@ class WASocket {
 	}
 
 	private async executeCommand(message: IContextMessage) {
-		const { command, text, args } = extractPrefix(
+		const { prefix, command, text, args } = extractPrefix(
 			this.prefix,
 			message.text
 		);
+		Object.assign(message, { prefix, text, args });
 		const commandHandler = this.commands.get(command);
 		if (commandHandler) {
-			Object.assign(message, { text, args });
-			console.log({ command, text, args });
 			await commandHandler(message);
 		} else {
 			this.emit("message", message);
@@ -354,7 +349,7 @@ class WASocket {
 			replyToQuotedMessage(
 				contextMessage.from!,
 				text,
-				this.sock!,
+				this.sock,
 				messageInfo,
 				opts
 			);
@@ -424,7 +419,9 @@ class WASocket {
 		return this.ev.emit(event, ...args);
 	}
 
-	async getMessage(key: WAMessageKey): Promise<WAMessageContent | undefined> {
+	private async getMessage(
+		key: WAMessageKey
+	): Promise<WAMessageContent | undefined> {
 		if (this.store) {
 			const msg = await this.store.loadMessage(key.remoteJid!, key.id!);
 			return msg?.message || undefined;
