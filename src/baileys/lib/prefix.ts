@@ -1,25 +1,14 @@
-export const extractPrefix = (
-	prefixes: string | string[] | null,
-	text: string
-) => {
-	let command = "";
-	// should be safe
-	const DEFAULT_RETURN = {
-		command,
-		text,
-		args: text.split(" "),
-	};
-	if (!prefixes) {
-		return DEFAULT_RETURN;
-	}
-	const prefix =
-		(Array.isArray(prefixes)
-			? prefixes.find((prefix) => text.startsWith(prefix))
-			: prefixes) ?? "";
+import { ICommand, IContextMessage } from "../types";
 
-	if (!prefix) {
-		return DEFAULT_RETURN;
-	}
+export const extractPrefix = (
+	_prefix: string | string[] | null,
+	text: string
+): ICommand & Pick<IContextMessage, "text" | "args"> => {
+	let command = "";
+	const prefix =
+		(Array.isArray(_prefix)
+			? _prefix.find((prefix) => text.startsWith(prefix))
+			: _prefix) ?? "";
 
 	text = text.slice(prefix.length).trim();
 	const args = text.split(" ");
@@ -29,6 +18,7 @@ export const extractPrefix = (
 	text = text.replace(command, "").trim();
 
 	return {
+		prefix,
 		command,
 		text,
 		args,
