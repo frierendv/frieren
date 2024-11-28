@@ -3,7 +3,6 @@ import type {
 	AnyRegularMessageContent,
 	WASocket as WASocketType,
 } from "baileys";
-import { createReadStream } from "node:fs";
 import { IContextMessage } from "../types";
 import {
 	createMediaObject,
@@ -86,28 +85,24 @@ export const sendFile = async (
 	}
 ) => {
 	const { fileName, caption, quoted } = opts ?? {};
-	const { path, type, unlink, ...rest } = await getSendFileOptions(
+	const { type, buffer, sendOptions } = await getSendFileOptions(
 		anyContent,
 		fileName,
 		caption
 	);
-	const message = await wrap(() =>
-		sock.sendMessage(
-			jid,
-			// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-			// @ts-expect-error
-			{
-				[type]: {
-					stream: createReadStream(path),
-				},
-				...rest,
-			},
-			{
-				quoted: quoted?.message,
-			}
-		)
-	);
 
-	unlink();
+	const message = await wrap(
+		async () =>
+			await sock.sendMessage(
+				jid,
+				{
+					...sendOptions,
+					[type]: buffer,
+				},
+				{
+					quoted: quoted?.message,
+				}
+			)
+	);
 	return message;
 };
