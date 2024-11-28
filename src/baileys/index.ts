@@ -74,12 +74,10 @@ type WASocketOptions = Omit<UserFacingSocketConfig, "auth"> & {
 
 const DEFAULT_AUTH_INFO_PATH = "baileys_auth_info";
 const DEFAULT_STORE_FILE_PATH = "baileys_store.json";
-const DEFAULT_LOG_FILE_PATH = "./wa-logs.txt";
 
 class WASocket {
 	private _mutex = new Mutex();
 	private state: AuthenticationState | null = null;
-	private logger: Pino.Logger;
 
 	private readonly _options: WASocketOptions;
 	private readonly authPath: string;
@@ -97,6 +95,8 @@ class WASocket {
 	public sock!: WASocketType;
 	public store = makeInMemoryStore({});
 
+	public logger: Pino.Logger = Pino({ level: "silent" });
+
 	constructor(options: WASocketOptions = {}) {
 		const { authPath, storePath, prefix, logger, ...rest } = options;
 
@@ -109,18 +109,12 @@ class WASocket {
 					? storePath
 					: `${storePath}.json`
 				: null) ?? DEFAULT_STORE_FILE_PATH;
-		this.logger =
-			logger ??
-			Pino(
-				{
-					timestamp: () => `,"time":"${new Date().toISOString()}"`,
-					level:
-						process.env.NODE_ENV === "development"
-							? "trace"
-							: "silent",
-				},
-				Pino.destination(DEFAULT_LOG_FILE_PATH)
-			);
+
+		// Replace the default logger with the provided logger
+		if (logger) {
+			this.logger = logger;
+		}
+
 		this._options = { ...rest };
 	}
 
