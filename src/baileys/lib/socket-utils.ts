@@ -70,7 +70,9 @@ const getSendOptions = (fileType: any, filename?: string, caption?: string) => {
 	const sendOptions = {
 		filename: filename ?? `file.${fileType?.ext ?? "bin"}`,
 		mimetype: fileType?.mime ?? "application/octet-stream",
-		caption: /webp|audio/i.test(fileType?.mime ?? "") ? caption : undefined,
+		caption: /image|video/i.test(fileType?.mime ?? "")
+			? caption
+			: undefined,
 	};
 
 	if (/audio/i.test(fileType?.mime ?? "")) {
