@@ -68,7 +68,7 @@ const getFinalType = (size: number, type: string) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getSendOptions = (fileType: any, filename?: string, caption?: string) => {
 	const sendOptions = {
-		filename: filename ?? `file.${fileType?.ext ?? "bin"}`,
+		filename: filename ?? `file_${Date.now()}.${fileType?.ext ?? "bin"}`,
 		mimetype: fileType?.mime ?? "application/octet-stream",
 		caption: /image|video/i.test(fileType?.mime ?? "")
 			? caption
