@@ -41,7 +41,7 @@ export class APIClient {
 
 		this._client = createClient<paths>({
 			baseUrl: this._baseUrl,
-			fetch: fetch ?? globalThis.fetch.bind(globalThis),
+			fetch: fetch ?? globalThis.fetch,
 			headers: {
 				Authorization: `Bearer ${this.#_apiKey}`,
 			},
