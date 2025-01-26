@@ -349,11 +349,12 @@ class WASocket {
 
 		// We extract the text from the ctx
 		// in this case, we are checking if the ctx is a text ctx
-		const contextInfo = (
-			ctx[type] as proto.IMessage & {
-				contextInfo?: proto.IContextInfo;
-			}
-		)?.contextInfo;
+		const contextInfo =
+			(
+				ctx[type] as proto.IMessage & {
+					contextInfo?: proto.IContextInfo;
+				}
+			)?.contextInfo || msg?.contextInfo;
 		contextMessage.mentionedJid = contextInfo?.mentionedJid ?? [];
 		contextMessage.quoted = assignQuotedIfExist<IContextMessage["quoted"]>(
 			{ messageInfo, contextInfo },
