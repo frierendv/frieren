@@ -45,7 +45,9 @@
 	},
 	"description": "",
 	"files": [
-		"dist"
+		"scripts/",
+		"dist/",
+		"src/"
 	],
 	"devDependencies": {
 		"@babel/preset-typescript": "^7.26.0",
