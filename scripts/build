@@ -7,6 +7,10 @@ OPEN_API_SCHEMA_URL="https://scdn.lovita.io/openapi/itsrose.json"
 rm -rf dist
 mkdir dist
 
+if [ ! -d "node_modules" ]; then
+	npm install
+fi
+
 ### SETUP ###
 # make copy of the original file
 cp node_modules/baileys/lib/Socket/index.d.ts dist/lib.Socket.baileys.d.ts
