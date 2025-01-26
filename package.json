@@ -28,7 +28,7 @@
 		"prepublishOnly": "npm run build",
 		"semantic-release": "semantic-release",
 		"semantic-release-dry": "semantic-release --dry-run",
-		"postinstall": "npm run build"
+		"prepare": "npm run build"
 	},
 	"repository": {
 		"type": "git",
