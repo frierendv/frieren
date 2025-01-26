@@ -2,6 +2,8 @@
 
 set -e -o pipefail
 
+OPEN_API_SCHEMA_URL="https://scdn.lovita.io/openapi/itsrose.json"
+
 cd "$(dirname "$0")/.." || exit 1
 
 rm -rf dist
@@ -22,6 +24,9 @@ mv dist/lib.Socket.baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
 
 # Create a module type definition file
 cp dist/index.d.ts dist/index.d.mts
+
+# get latest openapi schema
+npx openapi-typescript "$OPEN_API_SCHEMA_URL" --output dist/api/spec.d.ts &>/dev/null
 
 # Make sure isomorphic module works
 (cd dist && node -e 'require("@frierendv/frieren")')
