@@ -86,7 +86,7 @@
 	},
 	"peerDependenciesMeta": {
 		"baileys": {
-			"optional": true
+			"optional": false
 		}
 	},
 	"overrides": {
