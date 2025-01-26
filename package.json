@@ -28,7 +28,7 @@
 		"prepublishOnly": "npm run build",
 		"semantic-release": "semantic-release",
 		"semantic-release-dry": "semantic-release --dry-run",
-		"postinstall": "npm run build"
+		"preinstall": "npm run build"
 	},
 	"repository": {
 		"type": "git",
@@ -45,9 +45,7 @@
 	},
 	"description": "",
 	"files": [
-		"dist",
-		"src",
-		"scripts"
+		"dist"
 	],
 	"devDependencies": {
 		"@babel/preset-typescript": "^7.26.0",
