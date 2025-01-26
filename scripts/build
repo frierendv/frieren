@@ -15,6 +15,9 @@ cp node_modules/baileys/lib/Socket/index.d.ts dist/lib.Socket.baileys.d.ts
 # replace the import
 sed -i 's/import("long").Long/import("long")/g' node_modules/baileys/lib/Socket/index.d.ts
 
+# get latest openapi schema
+npx openapi-typescript "$OPEN_API_SCHEMA_URL" --output src/api/spec.d.ts &>/dev/null
+
 # compile.
 npm exec tsc
 
@@ -24,9 +27,6 @@ mv dist/lib.Socket.baileys.d.ts node_modules/baileys/lib/Socket/index.d.ts
 
 # Create a module type definition file
 cp dist/index.d.ts dist/index.d.mts
-
-# get latest openapi schema
-npx openapi-typescript "$OPEN_API_SCHEMA_URL" --output dist/api/spec.d.ts &>/dev/null
 
 # Make sure isomorphic module works
 (cd dist && node -e 'require("@frierendv/frieren")')
