@@ -46,6 +46,7 @@
 	"description": "",
 	"files": [
 		"dist",
+		"src",
 		"scripts"
 	],
 	"devDependencies": {
