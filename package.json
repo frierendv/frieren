@@ -27,7 +27,8 @@
 		"lint": "./scripts/lint",
 		"prepublishOnly": "npm run build",
 		"semantic-release": "semantic-release",
-		"semantic-release-dry": "semantic-release --dry-run"
+		"semantic-release-dry": "semantic-release --dry-run",
+		"postinstall": "npm run build"
 	},
 	"repository": {
 		"type": "git",
@@ -44,7 +45,8 @@
 	},
 	"description": "",
 	"files": [
-		"dist"
+		"dist",
+		"scripts"
 	],
 	"devDependencies": {
 		"@babel/preset-typescript": "^7.26.0",
