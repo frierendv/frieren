@@ -4,8 +4,6 @@ set -e -o pipefail
 
 OPEN_API_SCHEMA_URL="https://scdn.lovita.io/openapi/itsrose.json"
 
-# cd "$(dirname "$0")/.." || exit 1
-
 rm -rf dist
 mkdir dist
 
