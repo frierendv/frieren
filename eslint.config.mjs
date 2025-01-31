@@ -14,6 +14,7 @@ export default [
 			"node_modules/**/*",
 			"coverage/**/*",
 			"src/api/spec.d.ts",
+			"scripts/**/*",
 		],
 	},
 	{ languageOptions: { globals: { ...globals.node } } },
