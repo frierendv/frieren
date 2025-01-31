@@ -22,9 +22,9 @@
 		"node": ">=18.0.0"
 	},
 	"scripts": {
-		"build": "./scripts/build",
-		"test": "./scripts/test",
-		"lint": "./scripts/lint",
+		"build": "node ./scripts/build.js",
+		"test": "jest --runInBand --verbose --coverage --config jest.config.ts",
+		"lint": "eslint . --format=pretty --stats",
 		"prepublishOnly": "npm run build",
 		"semantic-release": "semantic-release",
 		"semantic-release-dry": "semantic-release --dry-run",
