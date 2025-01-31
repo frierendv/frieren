@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-set -e -o pipefail
-
-cd "$(dirname "$0")/.." || exit
-
-./node_modules/.bin/eslint . --format=pretty --stats
